@@ -18,7 +18,7 @@ kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-c
 kotlinx-coroutines-reactor = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-reactor", version.ref = "coroutines" }
 kotlinx-coroutines-slf4j = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-slf4j", version.ref = "coroutines" }
 
-slf4j-simple = { module = "org.slf4j:slf4j-simple", version = "2.0.14" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version = "2.0.15" }
 
 testcontainers-postgres = { module = "org.testcontainers:postgresql", version = "1.20.1" }
 hikaricp = { module = "com.zaxxer:HikariCP", version = "5.1.0" }
