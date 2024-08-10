@@ -18,5 +18,7 @@ include(
 
     ":pg-kueue-transport:pg-kueue-transport-core",
     ":pg-kueue-transport:pg-kueue-transport-jdbc",
+
+    ":pg-kueue-log:pg-kueue-log-core",
 )
 
