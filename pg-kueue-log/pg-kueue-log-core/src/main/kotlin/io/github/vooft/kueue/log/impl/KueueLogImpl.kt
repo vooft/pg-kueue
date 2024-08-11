@@ -6,7 +6,7 @@ import io.github.vooft.kueue.log.KueueConsumer
 import io.github.vooft.kueue.log.KueueLog
 import io.github.vooft.kueue.log.KueueProducer
 
-class KueueLogImpl<C, KC: KueueConnection<C>> : KueueLog<C, KC> {
+class KueueLogImpl<C, KC : KueueConnection<C>> : KueueLog<C, KC> {
     override suspend fun createProducer(topic: KueueTopic): KueueProducer<C, KC> {
         TODO("Not yet implemented")
     }

@@ -21,4 +21,3 @@ interface KueuePersister<C, KC : KueueConnection<C>> {
 
     suspend fun <T> withTransaction(kueueConnection: KC, block: suspend (C) -> T): T
 }
-

@@ -1,9 +1,9 @@
 package io.github.vooft.kueue.log.impl
 
-import io.github.oshai.kotlinlogging.KotlinLogging
 import io.github.vooft.kueue.KueueConnection
 import io.github.vooft.kueue.KueueConnectionProvider
 import io.github.vooft.kueue.KueueTopic
+import io.github.vooft.kueue.common.LoggerHolder
 import io.github.vooft.kueue.log.KueueProducer
 import io.github.vooft.kueue.persistence.KueueKey
 import io.github.vooft.kueue.persistence.KueueMessageModel
@@ -24,14 +24,9 @@ class KueueProducerImpl<C, KC : KueueConnection<C>>(
         logger.debug { "Producing key=$key, value=$value" }
 
         val message = retryingOptimisticLockingException {
-
             connectionProvider.withConnection(existingConnection) { acquiredConnection ->
 
-                logger.debug { "Acquired connection key=$key" }
-
                 persister.withTransaction(acquiredConnection) { connection ->
-
-                    logger.debug { "Started transaction key=$key" }
 
                     val topicModel = persister.getTopic(topic, connection)
                     val partitionIndex = key.partition(topicModel.partitions)
@@ -62,16 +57,11 @@ class KueueProducerImpl<C, KC : KueueConnection<C>>(
             }
         }
 
-
         logger.debug { "Produced key=$key, value=$value" }
         return message
     }
 
-    companion object {
-        private val logger = KotlinLogging.logger { }
-    }
+    companion object : LoggerHolder()
 }
 
-private fun KueueKey.partition(partitionCount: Int): KueuePartitionIndex {
-    return KueuePartitionIndex(key.hashCode() % partitionCount)
-}
+private fun KueueKey.partition(partitionCount: Int): KueuePartitionIndex = KueuePartitionIndex(key.hashCode() % partitionCount)

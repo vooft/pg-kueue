@@ -1,8 +1,9 @@
 package io.github.vooft.kueue.persistence.jdbc
 
-import io.github.oshai.kotlinlogging.KotlinLogging
 import io.github.vooft.kueue.KueueTopic
 import io.github.vooft.kueue.OptimisticLockingException
+import io.github.vooft.kueue.common.LoggerHolder
+import io.github.vooft.kueue.common.withNonCancellable
 import io.github.vooft.kueue.common.withVirtualThreadDispatcher
 import io.github.vooft.kueue.generated.sql.tables.references.MESSAGES
 import io.github.vooft.kueue.generated.sql.tables.references.TOPICS
@@ -21,7 +22,7 @@ import java.sql.Connection
 
 class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
     override suspend fun getTopic(topic: KueueTopic, connection: Connection): KueueTopicModel {
-        logger.info { "getTopic(): topic=$topic" }
+        logger.debug { "getTopic(): topic=$topic" }
 
         return connection.dsl {
             selectFrom(TOPICS)
@@ -36,7 +37,7 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
         partitionIndex: KueuePartitionIndex,
         connection: Connection
     ): KueueTopicPartitionModel? {
-        logger.info { "findTopicPartition(): topic=$topic, partitionIndex=$partitionIndex" }
+        logger.debug { "findTopicPartition(): topic=$topic, partitionIndex=$partitionIndex" }
 
         return connection.dsl {
             selectFrom(TOPIC_PARTITIONS)
@@ -56,7 +57,7 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
         lastOffset: Int,
         connection: Connection
     ): List<KueueMessageModel> {
-        logger.info { "getMessages(): topic=$topic, partitionIndex=$partitionIndex, firstOffset=$firstOffset, lastOffset=$lastOffset" }
+        logger.debug { "getMessages(): topic=$topic, partitionIndex=$partitionIndex, firstOffset=$firstOffset, lastOffset=$lastOffset" }
 
         return connection.dsl {
             selectFrom(MESSAGES)
@@ -102,8 +103,8 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
             if (inserted != 1) {
                 throw OptimisticLockingException(
                     "TopicPartition version conflict with topic=${model.topic}, " +
-                            "partitionIndex=${model.partitionIndex} " +
-                            "expected version=${model.version - 1}"
+                        "partitionIndex=${model.partitionIndex} " +
+                        "expected version=${model.version - 1}"
                 )
             }
 
@@ -131,9 +132,9 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
             if (inserted == 0) {
                 throw OptimisticLockingException(
                     "Message with topic=${model.topic}, " +
-                            "partitionIndex=${model.partitionIndex}, " +
-                            "partitionOffset=${model.partitionOffset} " +
-                            "already exists"
+                        "partitionIndex=${model.partitionIndex}, " +
+                        "partitionOffset=${model.partitionOffset} " +
+                        "already exists"
                 )
             }
 
@@ -145,36 +146,33 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
         }
     }
 
-    override suspend fun <T> withTransaction(kueueConnection: JdbcKueueConnection, block: suspend (Connection) -> T): T {
-        return kueueConnection.useUnwrapped { connection ->
-            val oldAutoCommit = connection.autoCommit
-            connection.autoCommit = false
-            try {
-                val result = block(connection)
-                if (oldAutoCommit) {
-                    connection.commit()
-                }
+    override suspend fun <T> withTransaction(kueueConnection: JdbcKueueConnection, block: suspend (Connection) -> T): T =
+        kueueConnection.useUnwrapped { connection ->
+            withVirtualThreadDispatcher {
+                val oldAutoCommit = connection.autoCommit
+                connection.autoCommit = false
+                try {
+                    val result = block(connection)
+                    if (oldAutoCommit) {
+                        withNonCancellable { connection.commit() }
+                    }
 
-                result
-            } catch (e: Exception) {
-                if (oldAutoCommit) {
-                    connection.rollback()
-                }
+                    result
+                } catch (e: Exception) {
+                    if (oldAutoCommit) {
+                        withNonCancellable { connection.rollback() }
+                    }
 
-                throw e
-            } finally {
-                connection.autoCommit = oldAutoCommit
+                    throw e
+                } finally {
+                    connection.autoCommit = oldAutoCommit
+                }
             }
         }
-    }
 
-    companion object {
-        private val logger = KotlinLogging.logger { }
-    }
+    companion object : LoggerHolder()
 }
 
-private suspend fun <T> Connection.dsl(block: suspend DSLContext.() -> T): T {
-    return withVirtualThreadDispatcher {
-        DSL.using(this, SQLDialect.POSTGRES).block()
-    }
+private suspend fun <T> Connection.dsl(block: suspend DSLContext.() -> T): T = withVirtualThreadDispatcher {
+    DSL.using(this, SQLDialect.POSTGRES).block()
 }

@@ -12,10 +12,8 @@ data class KueueTopicPartitionModel(
     val updatedAt: Instant = now()
 )
 
-fun KueueTopicPartitionModel.incrementNextPartitionOffset(): KueueTopicPartitionModel {
-    return copy(
-        nextPartitionOffset = nextPartitionOffset + 1,
-        version = version + 1,
-        updatedAt = now()
-    )
-}
+fun KueueTopicPartitionModel.incrementNextPartitionOffset(): KueueTopicPartitionModel = copy(
+    nextPartitionOffset = nextPartitionOffset + 1,
+    version = version + 1,
+    updatedAt = now()
+)

@@ -4,14 +4,18 @@ import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.github.vooft.kueue.IntegrationTest
 import io.github.vooft.kueue.KueueTopic
+import io.github.vooft.kueue.common.LoggerHolder
+import io.github.vooft.kueue.common.loggingExceptionHandler
 import io.github.vooft.kueue.jdbc.JdbcDataSourceKueueConnectionProvider
 import io.github.vooft.kueue.log.impl.KueueProducerImpl
 import io.github.vooft.kueue.persistence.KueueKey
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
 import io.github.vooft.kueue.persistence.KueueValue
 import io.github.vooft.kueue.persistence.jdbc.JdbcKueuePersister
+import io.github.vooft.kueue.retryingOptimisticLockingException
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -20,6 +24,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 class KueueProducerTest : IntegrationTest() {
 
@@ -58,7 +63,7 @@ class KueueProducerTest : IntegrationTest() {
     }
 
     @Test
-    fun `should produce records`(): Unit = runBlocking {
+    fun `should produce records`(): Unit = runBlocking(Dispatchers.Default + loggingExceptionHandler()) {
         val producer = KueueProducerImpl(
             topic = topic,
             connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource),
@@ -84,9 +89,16 @@ class KueueProducerTest : IntegrationTest() {
             persister = JdbcKueuePersister()
         )
 
-        val expectedMessages = List(20) { KueueKey(it.toString()) to KueueValue(it.toString()) }
+        val expectedMessages = List(1000) { KueueKey(it.toString()) to KueueValue(it.toString()) }
 
-        expectedMessages.map { (key, value) -> launch { producer.produce(key, value) } }.joinAll()
+        val inProgress = AtomicInteger()
+        expectedMessages.map { (key, value) ->
+            launch(Dispatchers.Default) {
+                inProgress.incrementAndGet()
+                retryingOptimisticLockingException { producer.produce(key, value) }
+                inProgress.decrementAndGet()
+            }
+        }.joinAll()
 
         val actualMessages = psql.createConnection("").use {
             JdbcKueuePersister().getMessages(topic, KueuePartitionIndex(0), 0, expectedMessages.size + 10, it)
@@ -94,4 +106,6 @@ class KueueProducerTest : IntegrationTest() {
 
         actualMessages shouldContainExactlyInAnyOrder expectedMessages
     }
+
+    companion object : LoggerHolder()
 }

@@ -22,6 +22,8 @@ tasks.withType<Detekt> {
     config.from(files("${rootDir.absolutePath}/detekt.yaml"))
     basePath = rootDir.absolutePath
 
+    exclude { it.file.absolutePath.contains("generated") }
+
     tasks.getByName("check").dependsOn(this)
 }
 

@@ -12,6 +12,4 @@ data class KueueMessageModel(
     val key: KueueKey,
     val value: KueueValue,
     val createdAt: Instant = now()
-): KueueTopicPartitionOffset
-
-
+) : KueueTopicPartitionOffset
