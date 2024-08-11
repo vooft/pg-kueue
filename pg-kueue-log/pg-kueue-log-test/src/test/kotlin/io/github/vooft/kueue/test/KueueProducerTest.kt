@@ -7,6 +7,7 @@ import io.github.vooft.kueue.KueueTopic
 import io.github.vooft.kueue.common.LoggerHolder
 import io.github.vooft.kueue.common.loggingExceptionHandler
 import io.github.vooft.kueue.jdbc.JdbcDataSourceKueueConnectionProvider
+import io.github.vooft.kueue.jdbc.JdbcKueueConnection
 import io.github.vooft.kueue.log.impl.KueueProducerImpl
 import io.github.vooft.kueue.persistence.KueueKey
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
@@ -14,6 +15,7 @@ import io.github.vooft.kueue.persistence.KueueValue
 import io.github.vooft.kueue.persistence.jdbc.JdbcKueuePersister
 import io.github.vooft.kueue.retryingOptimisticLockingException
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -106,6 +108,37 @@ class KueueProducerTest : IntegrationTest() {
         }.map { it.key to it.value }
 
         actualMessages shouldContainExactlyInAnyOrder expectedMessages
+    }
+
+    @Test
+    fun `should produce records in a single transaction`(): Unit = runBlocking(Dispatchers.Default + loggingExceptionHandler()) {
+        val producer = KueueProducerImpl(
+            topic = topic,
+            connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource),
+            persister = JdbcKueuePersister()
+        )
+
+        val expectedMessages = List(10) { KueueKey(it.toString()) to KueueValue(it.toString()) }
+
+        dataSource.connection.use { transactionalConnection ->
+            transactionalConnection.autoCommit = false
+            val kueueConnection = JdbcKueueConnection(transactionalConnection)
+
+            expectedMessages.forEach { (key, value) -> producer.produce(key, value, kueueConnection) }
+
+            dataSource.connection.use { nonTransactionalConnection ->
+                val msgs = JdbcKueuePersister().getMessages(topic, KueuePartitionIndex(0), 0, connection = nonTransactionalConnection)
+                msgs shouldHaveSize 0
+            }
+
+            transactionalConnection.commit()
+        }
+
+        val actualMessages = psql.createConnection("").use {
+            JdbcKueuePersister().getMessages(topic, KueuePartitionIndex(0), 0, expectedMessages.size + 10, it)
+        }.map { it.key to it.value }
+
+        actualMessages shouldBe expectedMessages
     }
 
     companion object : LoggerHolder()
