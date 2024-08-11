@@ -16,6 +16,7 @@ import io.github.vooft.kueue.retryingOptimisticLockingException
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -82,7 +83,7 @@ class KueueProducerTest : IntegrationTest() {
     }
 
     @Test
-    fun `should produce records in parallel`(): Unit = runBlocking {
+    fun `should produce records in parallel`(): Unit = runBlocking(SupervisorJob() + Dispatchers.Default + loggingExceptionHandler()) {
         val producer = KueueProducerImpl(
             topic = topic,
             connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource),
@@ -93,7 +94,7 @@ class KueueProducerTest : IntegrationTest() {
 
         val inProgress = AtomicInteger()
         expectedMessages.map { (key, value) ->
-            launch(Dispatchers.Default) {
+            launch {
                 inProgress.incrementAndGet()
                 retryingOptimisticLockingException { producer.produce(key, value) }
                 inProgress.decrementAndGet()
