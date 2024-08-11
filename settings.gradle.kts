@@ -9,6 +9,7 @@ include(
     ":pg-kueue-persistence:pg-kueue-persistence-schema",
     ":pg-kueue-persistence:pg-kueue-persistence-jdbc",
     ":pg-kueue-persistence:pg-kueue-persistence-jooq",
+    ":pg-kueue-persistence:pg-kueue-persistence-jooq-model",
 
     ":pg-kueue-pubsub:pg-kueue-pubsub-core",
     ":pg-kueue-pubsub:pg-kueue-pubsub-jdbc",
@@ -20,5 +21,6 @@ include(
     ":pg-kueue-transport:pg-kueue-transport-jdbc",
 
     ":pg-kueue-log:pg-kueue-log-core",
+    ":pg-kueue-log:pg-kueue-log-test",
 )
 

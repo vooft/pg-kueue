@@ -1,31 +1,31 @@
-CREATE TABLE topic (
+CREATE TABLE topics (
     name TEXT PRIMARY KEY,
     partitions INT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 CREATE TABLE messages (
     id UUID PRIMARY KEY,
     topic TEXT NOT NULL,
-    partition INT NOT NULL,
+    partition_index INT NOT NULL,
     partition_offset INT NOT NULL,
     key TEXT NOT NULL,
     message TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (topic) REFERENCES topic (name)
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    FOREIGN KEY (topic) REFERENCES topics (name)
 );
 
-CREATE INDEX messages_topic_partition_index ON messages (topic, partition, partition_offset);
+CREATE UNIQUE INDEX messages_topic_partition_index ON messages (topic, partition_index, partition_offset);
 
 CREATE TABLE topic_partitions (
     topic TEXT NOT NULL,
-    partition INT NOT NULL,
+    partition_index INT NOT NULL,
     next_partition_offset INT NOT NULL,
     version INT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    PRIMARY KEY (topic, partition),
-    FOREIGN KEY (topic) REFERENCES topic (name)
+    PRIMARY KEY (topic, partition_index),
+    FOREIGN KEY (topic) REFERENCES topics (name)
 );
 
 CREATE TABLE consumer_groups (
@@ -39,19 +39,19 @@ CREATE TABLE consumer_groups (
 CREATE TABLE committed_offsets (
     group_name TEXT NOT NULL,
     topic TEXT NOT NULL,
-    partition INT NOT NULL,
+    partition_index INT NOT NULL,
     partition_offset INT NOT NULL,
     version INT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    PRIMARY KEY (group_name, topic, partition),
-    FOREIGN KEY (topic) REFERENCES topic (name),
+    PRIMARY KEY (group_name, topic, partition_index),
+    FOREIGN KEY (topic) REFERENCES topics (name),
     FOREIGN KEY (group_name) REFERENCES consumer_groups (name),
-    FOREIGN KEY (topic, partition) REFERENCES topic_partitions (topic, partition)
+    FOREIGN KEY (topic, partition_index) REFERENCES topic_partitions (topic, partition_index)
 );
 
 CREATE INDEX committed_offsets_group_name_idx ON committed_offsets (group_name);
-CREATE INDEX committed_offsets_topic_partition_idx ON committed_offsets (topic, partition);
+CREATE INDEX committed_offsets_topic_partition_idx ON committed_offsets (topic, partition_index);
 
 CREATE TABLE connected_consumers (
     id UUID PRIMARY KEY,
@@ -63,7 +63,7 @@ CREATE TABLE connected_consumers (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
     last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL,
     FOREIGN KEY (group_name) REFERENCES consumer_groups (name),
-    FOREIGN KEY (topic) REFERENCES topic (name)
+    FOREIGN KEY (topic) REFERENCES topics (name)
 );
 
 CREATE INDEX connected_consumers_group_name_idx ON connected_consumers (group_name);
@@ -77,7 +77,7 @@ CREATE TABLE consumer_group_leader_locks (
     last_heartbeat TIMESTAMP WITH TIME ZONE NOT NULL,
 
     PRIMARY KEY (group_name, topic),
-    FOREIGN KEY (topic) REFERENCES topic (name),
+    FOREIGN KEY (topic) REFERENCES topics (name),
     FOREIGN KEY (group_name) REFERENCES consumer_groups (name),
     FOREIGN KEY (consumer_id) REFERENCES connected_consumers (id)
 );

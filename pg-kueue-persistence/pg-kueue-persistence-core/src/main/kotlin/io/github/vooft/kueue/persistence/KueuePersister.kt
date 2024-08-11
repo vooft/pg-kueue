@@ -4,10 +4,21 @@ import io.github.vooft.kueue.KueueConnection
 import io.github.vooft.kueue.KueueTopic
 
 interface KueuePersister<C, KC : KueueConnection<C>> {
-    suspend fun saveMessage(topic: String, message: String, kueueConnection: KC)
+    suspend fun getTopic(topic: KueueTopic, connection: C): KueueTopicModel
+    suspend fun findTopicPartition(topic: KueueTopic, partitionIndex: KueuePartitionIndex, connection: C): KueueTopicPartitionModel?
 
-    suspend fun getOrCreateTopic(topic: KueueTopic, kueueConnection: KC): KueueTopicModel
-    suspend fun getOrCreatePartition(topic: KueueTopic, partitionIndex: KueuePartitionIndex, kueueConnection: KC): KueueTopicPartition
-    suspend fun incrementNextOffset(topicPartition: KueueTopicPartition, kueueConnection: KC): KueueTopicPartition
-    suspend fun insertMessage(message: KueueMessage, kueueConnection: KC): KueueMessage
+    suspend fun getMessages(
+        topic: KueueTopic,
+        partitionIndex: KueuePartitionIndex,
+        firstOffset: Int,
+        lastOffset: Int = firstOffset,
+        connection: C
+    ): List<KueueMessageModel>
+
+    suspend fun upsert(model: KueueTopicModel, connection: C): KueueTopicModel
+    suspend fun upsert(model: KueueTopicPartitionModel, connection: C): KueueTopicPartitionModel
+    suspend fun upsert(model: KueueMessageModel, connection: C): KueueMessageModel
+
+    suspend fun <T> withTransaction(kueueConnection: KC, block: suspend (C) -> T): T
 }
+
