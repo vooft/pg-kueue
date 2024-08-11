@@ -13,7 +13,9 @@ class JdbcDataSourceKueueConnectionProvider(private val dataSource: DataSource) 
         JdbcKueueConnection(connection = dataSource.connection)
     }
 
-    override suspend fun close(connection: JdbcKueueConnection) = withVirtualThreadDispatcher {
-        connection.connection.close()
+    override suspend fun close(connection: JdbcKueueConnection) {
+        withVirtualThreadDispatcher {
+            connection.connection.close()
+        }
     }
 }

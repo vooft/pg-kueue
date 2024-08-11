@@ -51,6 +51,8 @@ style:
 coroutines:
   SuspendFunWithFlowReturnType:
     active: false
+  InjectDispatcher:
+    active: false
 
 potential-bugs:
   UnreachableCode:

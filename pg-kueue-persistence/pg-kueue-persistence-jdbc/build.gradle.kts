@@ -8,6 +8,7 @@ dependencies {
     api(project(":pg-kueue-transport:pg-kueue-transport-jdbc"))
 
     implementation(project(":pg-kueue-utils"))
+    implementation(project(":pg-kueue-persistence:pg-kueue-persistence-jooq-model"))
 
     compileOnly(libs.pg.jdbc)
 
