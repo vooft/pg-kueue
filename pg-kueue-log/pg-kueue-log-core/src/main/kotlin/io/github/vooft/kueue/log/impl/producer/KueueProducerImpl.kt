@@ -1,4 +1,4 @@
-package io.github.vooft.kueue.log.impl
+package io.github.vooft.kueue.log.impl.producer
 
 import io.github.vooft.kueue.KueueConnection
 import io.github.vooft.kueue.KueueConnectionProvider

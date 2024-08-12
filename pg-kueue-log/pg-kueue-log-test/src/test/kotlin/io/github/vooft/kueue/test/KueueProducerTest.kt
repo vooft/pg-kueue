@@ -8,7 +8,7 @@ import io.github.vooft.kueue.common.LoggerHolder
 import io.github.vooft.kueue.common.loggingExceptionHandler
 import io.github.vooft.kueue.jdbc.JdbcDataSourceKueueConnectionProvider
 import io.github.vooft.kueue.jdbc.JdbcKueueConnection
-import io.github.vooft.kueue.log.impl.KueueProducerImpl
+import io.github.vooft.kueue.log.impl.producer.KueueProducerImpl
 import io.github.vooft.kueue.persistence.KueueKey
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
 import io.github.vooft.kueue.persistence.KueueValue
