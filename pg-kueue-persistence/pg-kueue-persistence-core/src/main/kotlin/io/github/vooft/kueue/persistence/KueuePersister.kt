@@ -18,6 +18,7 @@ interface KueuePersister<C, KC : KueueConnection<C>> {
     suspend fun upsert(model: KueueTopicModel, connection: C): KueueTopicModel
     suspend fun upsert(model: KueueTopicPartitionModel, connection: C): KueueTopicPartitionModel
     suspend fun upsert(model: KueueMessageModel, connection: C): KueueMessageModel
+    suspend fun upsert(model: KueueConsumerGroupModel, connection: C): KueueConsumerGroupModel
 
     suspend fun <T> withTransaction(kueueConnection: KC, block: suspend (C) -> T): T
 }

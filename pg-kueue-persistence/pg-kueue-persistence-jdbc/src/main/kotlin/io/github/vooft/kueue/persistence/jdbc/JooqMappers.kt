@@ -1,9 +1,12 @@
 package io.github.vooft.kueue.persistence.jdbc
 
 import io.github.vooft.kueue.KueueTopic
+import io.github.vooft.kueue.generated.sql.tables.records.ConsumerGroupsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.MessagesRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicPartitionsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicsRecord
+import io.github.vooft.kueue.persistence.KueueConsumerGroup
+import io.github.vooft.kueue.persistence.KueueConsumerGroupModel
 import io.github.vooft.kueue.persistence.KueueKey
 import io.github.vooft.kueue.persistence.KueueMessageModel
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
@@ -60,4 +63,20 @@ internal fun TopicsRecord.toModel() = KueueTopicModel(
     name = KueueTopic(name),
     partitions = partitions,
     createdAt = createdAt,
+)
+
+internal fun KueueConsumerGroupModel.toRecord() = ConsumerGroupsRecord(
+    name = name.group,
+    status = status.name,
+    version = version,
+    createdAt = createdAt,
+    updatedAt = updatedAt
+)
+
+internal fun ConsumerGroupsRecord.toModel() = KueueConsumerGroupModel(
+    name = KueueConsumerGroup(name),
+    status = KueueConsumerGroupModel.KueueConsumerGroupStatus.valueOf(status),
+    version = version,
+    createdAt = createdAt,
+    updatedAt = updatedAt
 )
