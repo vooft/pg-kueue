@@ -2,7 +2,7 @@
 kotlin = "2.0.10"
 coroutines = "1.8.1"
 kotest = "5.9.1"
-flyway = "10.17.0"
+flyway = "10.17.1"
 
 [libraries]
 kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version = "7.0.0" }
