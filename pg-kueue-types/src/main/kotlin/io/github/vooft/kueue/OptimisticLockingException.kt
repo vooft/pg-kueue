@@ -28,3 +28,11 @@ suspend fun <T> retryingOptimisticLockingException(
 
     return block()
 }
+
+suspend fun swallowOptimisticLockingException(block: suspend () -> Unit) {
+    try {
+        block()
+    } catch (_: OptimisticLockingException) {
+        // ignore
+    }
+}

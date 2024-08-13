@@ -6,10 +6,13 @@ import io.github.vooft.kueue.common.LoggerHolder
 import io.github.vooft.kueue.common.withNonCancellable
 import io.github.vooft.kueue.common.withVirtualThreadDispatcher
 import io.github.vooft.kueue.generated.sql.tables.references.CONSUMER_GROUPS
+import io.github.vooft.kueue.generated.sql.tables.references.CONSUMER_GROUP_LEADER_LOCKS
 import io.github.vooft.kueue.generated.sql.tables.references.MESSAGES
 import io.github.vooft.kueue.generated.sql.tables.references.TOPICS
 import io.github.vooft.kueue.generated.sql.tables.references.TOPIC_PARTITIONS
 import io.github.vooft.kueue.jdbc.JdbcKueueConnection
+import io.github.vooft.kueue.persistence.KueueConsumerGroup
+import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
 import io.github.vooft.kueue.persistence.KueueConsumerGroupModel
 import io.github.vooft.kueue.persistence.KueueMessageModel
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
@@ -34,6 +37,17 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
         }
     }
 
+    override suspend fun findConsumerGroup(group: KueueConsumerGroup, connection: Connection): KueueConsumerGroupModel? {
+        logger.debug { "findConsumerGroup(): group=$group" }
+
+        return connection.dsl {
+            selectFrom(CONSUMER_GROUPS)
+                .where(CONSUMER_GROUPS.NAME.eq(group.group))
+                .fetchOne()
+                ?.toModel()
+        }
+    }
+
     override suspend fun findTopicPartition(
         topic: KueueTopic,
         partitionIndex: KueuePartitionIndex,
@@ -46,6 +60,24 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
                 .where(
                     TOPIC_PARTITIONS.TOPIC.eq(topic.topic),
                     TOPIC_PARTITIONS.PARTITION_INDEX.eq(partitionIndex.index)
+                )
+                .fetchOne()
+                ?.toModel()
+        }
+    }
+
+    override suspend fun findConsumerGroupLeaderLock(
+        topic: KueueTopic,
+        group: KueueConsumerGroup,
+        connection: Connection
+    ): KueueConsumerGroupLeaderLock? {
+        logger.debug { "findConsumerGroupLeaderLock(): topic=$topic, group=$group" }
+
+        return connection.dsl {
+            selectFrom(CONSUMER_GROUP_LEADER_LOCKS)
+                .where(
+                    CONSUMER_GROUP_LEADER_LOCKS.TOPIC.eq(topic.topic)
+                        .and(CONSUMER_GROUP_LEADER_LOCKS.GROUP_NAME.eq(group.group))
                 )
                 .fetchOne()
                 ?.toModel()
@@ -155,7 +187,7 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
             val record = model.toRecord()
             val inserted = insertInto(CONSUMER_GROUPS)
                 .set(record)
-                .onConflict(CONSUMER_GROUPS.NAME)
+                .onConflict(CONSUMER_GROUPS.NAME, CONSUMER_GROUPS.TOPIC)
                 .where(CONSUMER_GROUPS.VERSION.eq(model.version - 1))
                 .doNothing()
                 .execute()
@@ -169,6 +201,37 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
 
             selectFrom(CONSUMER_GROUPS)
                 .where(CONSUMER_GROUPS.NAME.eq(model.name.group))
+                .fetchSingle()
+                .toModel()
+        }
+    }
+
+    override suspend fun upsert(model: KueueConsumerGroupLeaderLock, connection: Connection): KueueConsumerGroupLeaderLock {
+        logger.debug { "Upserting $model" }
+
+        return connection.dsl {
+            val record = model.toRecord()
+            val inserted = insertInto(CONSUMER_GROUP_LEADER_LOCKS)
+                .set(record)
+                .onConflict(CONSUMER_GROUP_LEADER_LOCKS.GROUP_NAME, CONSUMER_GROUP_LEADER_LOCKS.TOPIC)
+                .where(CONSUMER_GROUP_LEADER_LOCKS.VERSION.eq(model.version - 1))
+                .doNothing()
+                .execute()
+
+            if (inserted == 0) {
+                throw OptimisticLockingException(
+                    "ConsumerGroupLeaderLock version conflict with groupName=${model.group.group}, " +
+                        "topic=${model.topic.topic}, consumerName=${model.consumer.name} " +
+                        "expected version=${model.version - 1}"
+                )
+            }
+
+            selectFrom(CONSUMER_GROUP_LEADER_LOCKS)
+                .where(
+                    CONSUMER_GROUP_LEADER_LOCKS.GROUP_NAME.eq(model.group.group)
+                        .and(CONSUMER_GROUP_LEADER_LOCKS.TOPIC.eq(model.topic.topic))
+                        .and(CONSUMER_GROUP_LEADER_LOCKS.CONSUMER_NAME.eq(model.consumer.name))
+                )
                 .fetchSingle()
                 .toModel()
         }

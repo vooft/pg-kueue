@@ -1,12 +1,15 @@
 package io.github.vooft.kueue.persistence.jdbc
 
 import io.github.vooft.kueue.KueueTopic
+import io.github.vooft.kueue.generated.sql.tables.records.ConsumerGroupLeaderLocksRecord
 import io.github.vooft.kueue.generated.sql.tables.records.ConsumerGroupsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.MessagesRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicPartitionsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicsRecord
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
+import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
 import io.github.vooft.kueue.persistence.KueueConsumerGroupModel
+import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.KueueKey
 import io.github.vooft.kueue.persistence.KueueMessageModel
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
@@ -67,6 +70,7 @@ internal fun TopicsRecord.toModel() = KueueTopicModel(
 
 internal fun KueueConsumerGroupModel.toRecord() = ConsumerGroupsRecord(
     name = name.group,
+    topic = topic.topic,
     status = status.name,
     version = version,
     createdAt = createdAt,
@@ -75,8 +79,29 @@ internal fun KueueConsumerGroupModel.toRecord() = ConsumerGroupsRecord(
 
 internal fun ConsumerGroupsRecord.toModel() = KueueConsumerGroupModel(
     name = KueueConsumerGroup(name),
+    topic = KueueTopic(topic),
     status = KueueConsumerGroupModel.KueueConsumerGroupStatus.valueOf(status),
     version = version,
     createdAt = createdAt,
     updatedAt = updatedAt
+)
+
+internal fun KueueConsumerGroupLeaderLock.toRecord() = ConsumerGroupLeaderLocksRecord(
+    groupName = group.group,
+    topic = topic.topic,
+    consumerName = consumer.name,
+    version = version,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    lastHeartbeat = lastHeartbeat
+)
+
+internal fun ConsumerGroupLeaderLocksRecord.toModel() = KueueConsumerGroupLeaderLock(
+    group = KueueConsumerGroup(groupName),
+    topic = KueueTopic(topic),
+    consumer = KueueConsumerName(consumerName),
+    version = version,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    lastHeartbeat = lastHeartbeat
 )
