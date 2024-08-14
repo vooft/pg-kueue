@@ -29,9 +29,7 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
 
     private val coroutineScope = CoroutineScope(SupervisorJob() + loggingExceptionHandler())
 
-    private val leaderJob = coroutineScope.launch(start = CoroutineStart.LAZY) { leaderLoop() }.apply {
-        invokeOnCompletion { logger.info(it) { "Leader loop completed for consumer=$consumerName topic=$topic, group=$consumerGroup" } }
-    }
+    private val leaderJob = coroutineScope.launch(start = CoroutineStart.LAZY) { leaderLoop() }
 
     override val messages: ReceiveChannel<KueueMessageModel>
         get() = TODO("Not yet implemented")
@@ -62,7 +60,7 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
     }
 
     override suspend fun close() {
-        TODO("Not yet implemented")
+        leaderJob.cancel()
     }
 
     companion object : LoggerHolder()
