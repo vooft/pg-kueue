@@ -11,13 +11,18 @@ interface KueuePersister<C, KC : KueueConnection<C>> {
 
     suspend fun findConnectedConsumers(topic: KueueTopic, group: KueueConsumerGroup, connection: C): List<KueueConnectedConsumerModel>
 
-    suspend fun findCommittedOffset(group: KueueConsumerGroup, topic: KueueTopic, partitionIndex: KueuePartitionIndex, connection: C): KueueCommittedOffsetModel?
+    suspend fun findCommittedOffset(
+        group: KueueConsumerGroup,
+        topic: KueueTopic,
+        partitionIndex: KueuePartitionIndex,
+        connection: C
+    ): KueueCommittedOffsetModel?
 
     suspend fun getMessages(
         topic: KueueTopic,
         partitionIndex: KueuePartitionIndex,
-        firstOffset: Int,
-        lastOffset: Int = firstOffset,
+        firstOffset: KueuePartitionOffset,
+        lastOffset: KueuePartitionOffset = firstOffset,
         connection: C
     ): List<KueueMessageModel>
 
@@ -33,6 +38,11 @@ interface KueuePersister<C, KC : KueueConnection<C>> {
     suspend fun <T> withTransaction(kueueConnection: KC, block: suspend (C) -> T): T
 }
 
-suspend fun <C, KC : KueueConnection<C>> KueuePersister<C, KC>.findConnectedConsumer(consumerName: KueueConsumerName, topic: KueueTopic, group: KueueConsumerGroup, connection: C): KueueConnectedConsumerModel? {
-    return findConnectedConsumers(topic, group, connection).find { it.consumerName == consumerName }
+suspend fun <C, KC : KueueConnection<C>> KueuePersister<C, KC>.findConnectedConsumer(
+    consumerName: KueueConsumerName,
+    topic: KueueTopic,
+    group: KueueConsumerGroup,
+    connection: C
+): KueueConnectedConsumerModel? = findConnectedConsumers(topic, group, connection).find {
+    it.consumerName == consumerName
 }

@@ -94,8 +94,8 @@ class KueueConsumerDao<C, KC : KueueConnection<C>>(
         }
     }
 
-    suspend fun heartbeat(consumer: KueueConsumerName, topic: KueueTopic, group: KueueConsumerGroup): KueueConnectedConsumerModel {
-        return connectionProvider.withRetryingAcquiredConnection { connection ->
+    suspend fun heartbeat(consumer: KueueConsumerName, topic: KueueTopic, group: KueueConsumerGroup): KueueConnectedConsumerModel =
+        connectionProvider.withRetryingAcquiredConnection { connection ->
             val consumerModel = persister.findConnectedConsumer(consumer, topic, group, connection) ?: persister.upsert(
                 model = KueueConnectedConsumerModel(
                     consumerName = consumer,
@@ -108,28 +108,24 @@ class KueueConsumerDao<C, KC : KueueConnection<C>>(
 
             persister.upsert(consumerModel.heartbeat(), connection)
         }
-    }
 
     suspend fun queryCommittedOffsets(
         partitions: Collection<KueuePartitionIndex>,
         topic: KueueTopic,
         group: KueueConsumerGroup
-    ): Map<KueuePartitionIndex, KueuePartitionOffset> {
-        return connectionProvider.withRetryingAcquiredConnection { connection ->
-            partitions.associateWith { partition ->
-                val offset = persister.findCommittedOffset(group, topic, partition, connection) ?: persister.upsert(
-                    KueueCommittedOffsetModel(
-                        group = group,
-                        topic = topic,
-                        partitionIndex = partition,
-                        offset = KueuePartitionOffset(-1),
-                    ),
-                    connection
-                )
+    ): Map<KueuePartitionIndex, KueuePartitionOffset> = connectionProvider.withRetryingAcquiredConnection { connection ->
+        partitions.associateWith { partition ->
+            val offset = persister.findCommittedOffset(group, topic, partition, connection) ?: persister.upsert(
+                KueueCommittedOffsetModel(
+                    group = group,
+                    topic = topic,
+                    partitionIndex = partition,
+                    offset = KueuePartitionOffset(-1),
+                ),
+                connection
+            )
 
-                offset.offset
-            }
+            offset.offset
         }
     }
-
 }

@@ -8,6 +8,7 @@ value class KueuePartitionIndex(val index: Int)
 @JvmInline
 value class KueuePartitionOffset(val offset: Int) {
     operator fun plus(i: Int) = KueuePartitionOffset(offset + i)
+    operator fun minus(i: Int) = KueuePartitionOffset(offset - i)
 }
 
 @JvmInline

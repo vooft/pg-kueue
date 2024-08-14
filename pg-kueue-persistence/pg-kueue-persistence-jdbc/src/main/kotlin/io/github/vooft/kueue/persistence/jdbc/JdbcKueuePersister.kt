@@ -18,6 +18,7 @@ import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
 import io.github.vooft.kueue.persistence.KueueMessageModel
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
+import io.github.vooft.kueue.persistence.KueuePartitionOffset
 import io.github.vooft.kueue.persistence.KueuePersister
 import io.github.vooft.kueue.persistence.KueueTopicModel
 import io.github.vooft.kueue.persistence.KueueTopicPartitionModel
@@ -113,8 +114,8 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
     override suspend fun getMessages(
         topic: KueueTopic,
         partitionIndex: KueuePartitionIndex,
-        firstOffset: Int,
-        lastOffset: Int,
+        firstOffset: KueuePartitionOffset,
+        lastOffset: KueuePartitionOffset,
         connection: Connection
     ): List<KueueMessageModel> {
         logger.debug { "getMessages(): topic=$topic, partitionIndex=$partitionIndex, firstOffset=$firstOffset, lastOffset=$lastOffset" }
@@ -124,7 +125,7 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
                 .where(
                     MESSAGES.TOPIC.eq(topic.topic),
                     MESSAGES.PARTITION_INDEX.eq(partitionIndex.index),
-                    MESSAGES.PARTITION_OFFSET.between(firstOffset, lastOffset),
+                    MESSAGES.PARTITION_OFFSET.between(firstOffset.offset, lastOffset.offset),
                 )
                 .orderBy(MESSAGES.CREATED_AT.asc())
                 .fetch()

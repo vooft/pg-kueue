@@ -39,6 +39,7 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
 
     override val messages = Channel<KueueMessageModel>()
 
+    @Suppress("detekt:RedundantSuspendModifier")
     suspend fun init() {
         leaderJob.start()
         pollJob.start()

@@ -21,7 +21,6 @@ include(
     ":pg-kueue-transport:pg-kueue-transport-jdbc",
 
     ":pg-kueue-log:pg-kueue-log-core",
-    ":pg-kueue-log:pg-kueue-log-poller-jdbc",
     ":pg-kueue-log:pg-kueue-log-test",
 )
 

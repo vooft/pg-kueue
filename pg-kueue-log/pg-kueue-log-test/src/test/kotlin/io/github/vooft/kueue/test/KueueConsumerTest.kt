@@ -7,8 +7,9 @@ import io.github.vooft.kueue.KueueTopic
 import io.github.vooft.kueue.common.LoggerHolder
 import io.github.vooft.kueue.common.loggingExceptionHandler
 import io.github.vooft.kueue.jdbc.JdbcDataSourceKueueConnectionProvider
-import io.github.vooft.kueue.log.impl.consumer.KueueConsumerImpl
 import io.github.vooft.kueue.log.impl.consumer.KueueConsumerDao
+import io.github.vooft.kueue.log.impl.consumer.KueueConsumerImpl
+import io.github.vooft.kueue.log.impl.poller.PersisterKueueConsumerMessagePoller
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.jdbc.JdbcKueuePersister
@@ -64,11 +65,16 @@ class KueueConsumerTest : IntegrationTest() {
 
     @Test
     fun `should elect leader`(): Unit = runBlocking(Dispatchers.Default + loggingExceptionHandler()) {
+        val connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource)
         val consumer = KueueConsumerImpl(
             topic = topic,
             consumerGroup = group,
             consumerDao = KueueConsumerDao(
-                connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource),
+                connectionProvider = connectionProvider,
+                persister = JdbcKueuePersister(),
+            ),
+            poller = PersisterKueueConsumerMessagePoller(
+                connectionProvider = connectionProvider,
                 persister = JdbcKueuePersister()
             )
         )
@@ -94,13 +100,18 @@ class KueueConsumerTest : IntegrationTest() {
             it.createStatement().execute("INSERT INTO topics (name, partitions, created_at) VALUES ('${topic2.topic}', $partitions, now())")
         }
 
+        val connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource)
         val consumers = List(partitions) {
             KueueConsumerImpl(
                 topic = topic2,
                 consumerGroup = group,
                 consumerName = KueueConsumerName(it.toString()),
                 consumerDao = KueueConsumerDao(
-                    connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource),
+                    connectionProvider = connectionProvider,
+                    persister = JdbcKueuePersister()
+                ),
+                poller = PersisterKueueConsumerMessagePoller(
+                    connectionProvider = connectionProvider,
                     persister = JdbcKueuePersister()
                 )
             )
