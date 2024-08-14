@@ -5,14 +5,12 @@ package io.github.vooft.kueue.persistence.jdbc
 import io.github.vooft.kueue.KueueTopic
 import io.github.vooft.kueue.generated.sql.tables.records.ConnectedConsumersRecord
 import io.github.vooft.kueue.generated.sql.tables.records.ConsumerGroupLeaderLocksRecord
-import io.github.vooft.kueue.generated.sql.tables.records.ConsumerGroupsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.MessagesRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicPartitionsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicsRecord
 import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
-import io.github.vooft.kueue.persistence.KueueConsumerGroupModel
 import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.KueueKey
 import io.github.vooft.kueue.persistence.KueueMessageModel
@@ -72,24 +70,6 @@ internal fun TopicsRecord.toModel() = KueueTopicModel(
     createdAt = createdAt,
 )
 
-internal fun KueueConsumerGroupModel.toRecord() = ConsumerGroupsRecord(
-    name = name.group,
-    topic = topic.topic,
-    status = status.name,
-    version = version,
-    createdAt = createdAt,
-    updatedAt = updatedAt
-)
-
-internal fun ConsumerGroupsRecord.toModel() = KueueConsumerGroupModel(
-    name = KueueConsumerGroup(name),
-    topic = KueueTopic(topic),
-    status = KueueConsumerGroupModel.KueueConsumerGroupStatus.valueOf(status),
-    version = version,
-    createdAt = createdAt,
-    updatedAt = updatedAt
-)
-
 internal fun KueueConsumerGroupLeaderLock.toRecord() = ConsumerGroupLeaderLocksRecord(
     groupName = group.group,
     topic = topic.topic,
@@ -114,6 +94,7 @@ internal fun KueueConnectedConsumerModel.toRecord() = ConnectedConsumersRecord(
     consumerName = consumerName.name,
     groupName = groupName.group,
     topic = topic.topic,
+    status = status.name,
     assignedPartitions = assignedPartitions.map { it.index }.toTypedArray(),
     version = version,
     createdAt = createdAt,
@@ -125,6 +106,7 @@ internal fun ConnectedConsumersRecord.toModel() = KueueConnectedConsumerModel(
     consumerName = KueueConsumerName(consumerName),
     groupName = KueueConsumerGroup(groupName),
     topic = KueueTopic(topic),
+    status = KueueConnectedConsumerModel.KueueConnectedConsumerStatus.valueOf(status),
     assignedPartitions = assignedPartitions.filterNotNull().map { KueuePartitionIndex(it) }.toSet(),
     version = version,
     createdAt = createdAt,

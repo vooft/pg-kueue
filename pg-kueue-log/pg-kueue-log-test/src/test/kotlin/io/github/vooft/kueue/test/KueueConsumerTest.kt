@@ -10,8 +10,10 @@ import io.github.vooft.kueue.jdbc.JdbcDataSourceKueueConnectionProvider
 import io.github.vooft.kueue.log.impl.consumer.KueueConsumerImpl
 import io.github.vooft.kueue.log.impl.consumer.KueueConsumerService
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
+import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.jdbc.JdbcKueuePersister
 import io.kotest.assertions.nondeterministic.eventually
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +82,41 @@ class KueueConsumerTest : IntegrationTest() {
                     .shouldNotBeNull()
 
                 leader.consumer shouldBe consumer.consumerName
+            }
+        }
+    }
+
+    @Test
+    fun `should assign partitions to multiple consumers`(): Unit = runBlocking(Dispatchers.Default + loggingExceptionHandler()) {
+        val partitions = 10
+        val topic2 = KueueTopic(UUID.randomUUID().toString())
+        psql.createConnection("").use {
+            it.createStatement().execute("INSERT INTO topics (name, partitions, created_at) VALUES ('${topic2.topic}', $partitions, now())")
+        }
+
+        val consumers = List(partitions) {
+            KueueConsumerImpl(
+                topic = topic2,
+                consumerGroup = group,
+                consumerName = KueueConsumerName(it.toString()),
+                consumerService = KueueConsumerService(
+                    connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource),
+                    persister = JdbcKueuePersister()
+                )
+            )
+        }
+
+        consumers.forEach { it.init() }
+
+        eventually(1.minutes) {
+            dataSource.connection.use { connection ->
+                val connectedConsumers = JdbcKueuePersister()
+                    .findConnectedConsumers(topic2, group, connection)
+
+                connectedConsumers.size shouldBe partitions
+
+                val assignedPartitions = connectedConsumers.flatMap { it.assignedPartitions }.map { it.index }.sorted()
+                assignedPartitions shouldContainExactly (0 until partitions).toList()
             }
         }
     }

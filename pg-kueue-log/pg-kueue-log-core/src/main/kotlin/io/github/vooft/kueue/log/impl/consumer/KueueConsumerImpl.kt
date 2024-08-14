@@ -23,10 +23,9 @@ import java.util.UUID
 class KueueConsumerImpl<C, KC : KueueConnection<C>>(
     override val topic: KueueTopic,
     override val consumerGroup: KueueConsumerGroup,
+    val consumerName: KueueConsumerName = KueueConsumerName(UUID.randomUUID().toString()),
     private val consumerService: KueueConsumerService<C, KC>
 ) : KueueConsumer {
-
-    val consumerName = KueueConsumerName(UUID.randomUUID().toString())
 
     private val coroutineScope = CoroutineScope(SupervisorJob() + loggingExceptionHandler())
 
@@ -38,8 +37,7 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
         get() = TODO("Not yet implemented")
 
     suspend fun init() {
-        consumerService.initConsumerGroup(topic, consumerGroup)
-        consumerService.forceRebalanceConsumerGroup(topic, consumerGroup)
+        consumerService.connectConsumer(consumerName, topic, consumerGroup)
 
         leaderJob.start()
     }
@@ -52,6 +50,8 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
             }
 
             logger.info { "I am a leader $consumerName" }
+
+            consumerService.rebalanceIfNeeded(topic, consumerGroup)
 
             delay(HEARTBEAT_DELAY)
         }

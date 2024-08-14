@@ -7,17 +7,22 @@ data class KueueConnectedConsumerModel(
     val consumerName: KueueConsumerName,
     val groupName: KueueConsumerGroup,
     val topic: KueueTopic,
+    val status: KueueConnectedConsumerStatus,
     val assignedPartitions: Set<KueuePartitionIndex> = setOf(),
     val version: Int = 1,
     val createdAt: Instant = now(),
     val updatedAt: Instant = now(),
     val lastHeartbeat: Instant = now()
-)
-
-fun KueueConnectedConsumerModel.assignPartitions(partitions: Set<KueuePartitionIndex>): KueueConnectedConsumerModel {
-    return copy(
-        assignedPartitions = partitions,
-        version = version + 1,
-        updatedAt = now()
-    )
+) {
+    enum class KueueConnectedConsumerStatus {
+        BALANCED,
+        UNBALANCED
+    }
 }
+
+fun KueueConnectedConsumerModel.balance(partitions: Set<KueuePartitionIndex>): KueueConnectedConsumerModel = copy(
+    assignedPartitions = partitions,
+    status = KueueConnectedConsumerModel.KueueConnectedConsumerStatus.BALANCED,
+    version = version + 1,
+    updatedAt = now()
+)
