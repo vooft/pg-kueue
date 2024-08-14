@@ -8,7 +8,7 @@ import io.github.vooft.kueue.common.LoggerHolder
 import io.github.vooft.kueue.common.loggingExceptionHandler
 import io.github.vooft.kueue.jdbc.JdbcDataSourceKueueConnectionProvider
 import io.github.vooft.kueue.log.impl.consumer.KueueConsumerImpl
-import io.github.vooft.kueue.log.impl.consumer.KueueConsumerService
+import io.github.vooft.kueue.log.impl.consumer.KueueConsumerDao
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.jdbc.JdbcKueuePersister
@@ -67,7 +67,7 @@ class KueueConsumerTest : IntegrationTest() {
         val consumer = KueueConsumerImpl(
             topic = topic,
             consumerGroup = group,
-            consumerService = KueueConsumerService(
+            consumerDao = KueueConsumerDao(
                 connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource),
                 persister = JdbcKueuePersister()
             )
@@ -99,7 +99,7 @@ class KueueConsumerTest : IntegrationTest() {
                 topic = topic2,
                 consumerGroup = group,
                 consumerName = KueueConsumerName(it.toString()),
-                consumerService = KueueConsumerService(
+                consumerDao = KueueConsumerDao(
                     connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource),
                     persister = JdbcKueuePersister()
                 )

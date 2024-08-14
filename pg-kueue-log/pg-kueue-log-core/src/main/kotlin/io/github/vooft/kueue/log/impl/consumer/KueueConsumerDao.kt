@@ -6,6 +6,7 @@ import io.github.vooft.kueue.KueueTopic
 import io.github.vooft.kueue.log.impl.producer.withAcquiredConnection
 import io.github.vooft.kueue.log.impl.producer.withConnection
 import io.github.vooft.kueue.log.impl.producer.withRetryingAcquiredConnection
+import io.github.vooft.kueue.persistence.KueueCommittedOffsetModel
 import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel
 import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel.KueueConnectedConsumerStatus.BALANCED
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
@@ -13,6 +14,7 @@ import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock.Companion.MAX_HEARTBEAT_TIMEOUT
 import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
+import io.github.vooft.kueue.persistence.KueuePartitionOffset
 import io.github.vooft.kueue.persistence.KueuePersister
 import io.github.vooft.kueue.persistence.balance
 import io.github.vooft.kueue.persistence.findConnectedConsumer
@@ -23,7 +25,7 @@ import io.github.vooft.kueue.retryingOptimisticLockingException
 import java.time.Instant
 import kotlin.time.toJavaDuration
 
-class KueueConsumerService<C, KC : KueueConnection<C>>(
+class KueueConsumerDao<C, KC : KueueConnection<C>>(
     private val connectionProvider: KueueConnectionProvider<C, KC>,
     private val persister: KueuePersister<C, KC>,
 ) {
@@ -107,4 +109,27 @@ class KueueConsumerService<C, KC : KueueConnection<C>>(
             persister.upsert(consumerModel.heartbeat(), connection)
         }
     }
+
+    suspend fun queryCommittedOffsets(
+        partitions: Collection<KueuePartitionIndex>,
+        topic: KueueTopic,
+        group: KueueConsumerGroup
+    ): Map<KueuePartitionIndex, KueuePartitionOffset> {
+        return connectionProvider.withRetryingAcquiredConnection { connection ->
+            partitions.associateWith { partition ->
+                val offset = persister.findCommittedOffset(group, topic, partition, connection) ?: persister.upsert(
+                    KueueCommittedOffsetModel(
+                        group = group,
+                        topic = topic,
+                        partitionIndex = partition,
+                        offset = KueuePartitionOffset(-1),
+                    ),
+                    connection
+                )
+
+                offset.offset
+            }
+        }
+    }
+
 }

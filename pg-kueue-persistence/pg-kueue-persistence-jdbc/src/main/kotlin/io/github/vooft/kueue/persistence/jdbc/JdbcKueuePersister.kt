@@ -5,12 +5,14 @@ import io.github.vooft.kueue.OptimisticLockingException
 import io.github.vooft.kueue.common.LoggerHolder
 import io.github.vooft.kueue.common.withNonCancellable
 import io.github.vooft.kueue.common.withVirtualThreadDispatcher
+import io.github.vooft.kueue.generated.sql.tables.references.COMMITTED_OFFSETS
 import io.github.vooft.kueue.generated.sql.tables.references.CONNECTED_CONSUMERS
 import io.github.vooft.kueue.generated.sql.tables.references.CONSUMER_GROUP_LEADER_LOCKS
 import io.github.vooft.kueue.generated.sql.tables.references.MESSAGES
 import io.github.vooft.kueue.generated.sql.tables.references.TOPICS
 import io.github.vooft.kueue.generated.sql.tables.references.TOPIC_PARTITIONS
 import io.github.vooft.kueue.jdbc.JdbcKueueConnection
+import io.github.vooft.kueue.persistence.KueueCommittedOffsetModel
 import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
@@ -86,6 +88,26 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
             )
             .fetch()
             .map { it.toModel() }
+    }
+
+    override suspend fun findCommittedOffset(
+        group: KueueConsumerGroup,
+        topic: KueueTopic,
+        partitionIndex: KueuePartitionIndex,
+        connection: Connection
+    ): KueueCommittedOffsetModel? {
+        logger.debug { "findCommittedOffset(): group=$group, topic=$topic, partitionIndex=$partitionIndex" }
+
+        return connection.dsl {
+            selectFrom(COMMITTED_OFFSETS)
+                .where(
+                    COMMITTED_OFFSETS.TOPIC.eq(topic.topic),
+                    COMMITTED_OFFSETS.GROUP_NAME.eq(group.group),
+                    COMMITTED_OFFSETS.PARTITION_INDEX.eq(partitionIndex.index)
+                )
+                .fetchOne()
+                ?.toModel()
+        }
     }
 
     override suspend fun getMessages(
@@ -222,15 +244,6 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
         return connection.dsl {
             val record = model.toRecord()
 
-            val existing = selectFrom(CONNECTED_CONSUMERS)
-                .where(
-                    CONNECTED_CONSUMERS.CONSUMER_NAME.eq(model.consumerName.name),
-                    CONNECTED_CONSUMERS.TOPIC.eq(model.topic.topic),
-                    CONNECTED_CONSUMERS.GROUP_NAME.eq(model.groupName.group)
-                )
-                .fetchOne()
-                ?.toModel()
-
             val inserted = insertInto(CONNECTED_CONSUMERS)
                 .set(record)
                 .onConflict(CONNECTED_CONSUMERS.CONSUMER_NAME, CONNECTED_CONSUMERS.TOPIC, CONNECTED_CONSUMERS.GROUP_NAME)
@@ -243,8 +256,7 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
                 throw OptimisticLockingException(
                     "ConnectedConsumer version conflict with consumerName=${model.consumerName.name}, " +
                         "topic=${model.topic.topic}, groupName=${model.groupName.group} " +
-                        "inserting $model " +
-                        "expected $existing"
+                        "expected version=${model.version - 1}"
                 )
             }
 
@@ -253,6 +265,42 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
                     CONNECTED_CONSUMERS.CONSUMER_NAME.eq(model.consumerName.name),
                     CONNECTED_CONSUMERS.TOPIC.eq(model.topic.topic),
                     CONNECTED_CONSUMERS.GROUP_NAME.eq(model.groupName.group)
+                )
+                .fetchSingle()
+                .toModel()
+        }
+    }
+
+    override suspend fun upsert(model: KueueCommittedOffsetModel, connection: Connection): KueueCommittedOffsetModel {
+        logger.debug { "Upserting $model" }
+
+        return connection.dsl {
+            val record = model.toRecord()
+            val inserted = insertInto(COMMITTED_OFFSETS)
+                .set(record)
+                .onConflict(
+                    COMMITTED_OFFSETS.TOPIC,
+                    COMMITTED_OFFSETS.GROUP_NAME,
+                    COMMITTED_OFFSETS.PARTITION_INDEX
+                )
+                .doUpdate()
+                .set(record)
+                .where(COMMITTED_OFFSETS.VERSION.eq(model.version - 1))
+                .execute()
+
+            if (inserted == 0) {
+                throw OptimisticLockingException(
+                    "CommittedOffset version conflict with group=${model.group.group}, " +
+                        "topic=${model.topic.topic}, partitionIndex=${model.partitionIndex.index} " +
+                        "expected version=${model.version - 1}"
+                )
+            }
+
+            selectFrom(COMMITTED_OFFSETS)
+                .where(
+                    COMMITTED_OFFSETS.TOPIC.eq(model.topic.topic),
+                    COMMITTED_OFFSETS.GROUP_NAME.eq(model.group.group),
+                    COMMITTED_OFFSETS.PARTITION_INDEX.eq(model.partitionIndex.index)
                 )
                 .fetchSingle()
                 .toModel()

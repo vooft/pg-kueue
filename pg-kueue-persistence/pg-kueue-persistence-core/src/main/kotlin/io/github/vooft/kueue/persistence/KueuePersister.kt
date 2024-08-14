@@ -11,6 +11,8 @@ interface KueuePersister<C, KC : KueueConnection<C>> {
 
     suspend fun findConnectedConsumers(topic: KueueTopic, group: KueueConsumerGroup, connection: C): List<KueueConnectedConsumerModel>
 
+    suspend fun findCommittedOffset(group: KueueConsumerGroup, topic: KueueTopic, partitionIndex: KueuePartitionIndex, connection: C): KueueCommittedOffsetModel?
+
     suspend fun getMessages(
         topic: KueueTopic,
         partitionIndex: KueuePartitionIndex,
@@ -24,6 +26,7 @@ interface KueuePersister<C, KC : KueueConnection<C>> {
     suspend fun upsert(model: KueueMessageModel, connection: C): KueueMessageModel
     suspend fun upsert(model: KueueConsumerGroupLeaderLock, connection: C): KueueConsumerGroupLeaderLock
     suspend fun upsert(model: KueueConnectedConsumerModel, connection: C): KueueConnectedConsumerModel
+    suspend fun upsert(model: KueueCommittedOffsetModel, connection: C): KueueCommittedOffsetModel
 
     suspend fun delete(model: KueueConnectedConsumerModel, connection: C)
 
