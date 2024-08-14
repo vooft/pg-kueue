@@ -29,3 +29,7 @@ interface KueuePersister<C, KC : KueueConnection<C>> {
 
     suspend fun <T> withTransaction(kueueConnection: KC, block: suspend (C) -> T): T
 }
+
+suspend fun <C, KC : KueueConnection<C>> KueuePersister<C, KC>.findConnectedConsumer(consumerName: KueueConsumerName, topic: KueueTopic, group: KueueConsumerGroup, connection: C): KueueConnectedConsumerModel? {
+    return findConnectedConsumers(topic, group, connection).find { it.consumerName == consumerName }
+}

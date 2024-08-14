@@ -9,11 +9,12 @@ import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock.Companion.HEARTBEAT_DELAY
 import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.KueueMessageModel
+import io.github.vooft.kueue.persistence.KueuePartitionIndex
 import io.github.vooft.kueue.persistence.KueueTopicPartitionOffset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -31,13 +32,19 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
 
     private val leaderJob = coroutineScope.launch(start = CoroutineStart.LAZY) { leaderLoop() }
 
-    override val messages: ReceiveChannel<KueueMessageModel>
-        get() = TODO("Not yet implemented")
+    override val messages = Channel<KueueMessageModel>()
 
     suspend fun init() {
-        consumerService.connectConsumer(consumerName, topic, consumerGroup)
-
         leaderJob.start()
+    }
+
+    override suspend fun commit(offset: KueueTopicPartitionOffset) {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun close() {
+        messages.close()
+        leaderJob.cancel()
     }
 
     private suspend fun leaderLoop() = coroutineScope {
@@ -55,12 +62,19 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
         }
     }
 
-    override suspend fun commit(offset: KueueTopicPartitionOffset) {
-        TODO("Not yet implemented")
-    }
+    private suspend fun heartbeatLoop() = coroutineScope {
+        var assignedPartitions = emptySet<KueuePartitionIndex>()
+        while (isActive) {
+            val consumer = consumerService.heartbeat(consumerName, topic, consumerGroup)
+            if (consumer.assignedPartitions == assignedPartitions) {
+                delay(HEARTBEAT_DELAY)
+                continue
+            }
 
-    override suspend fun close() {
-        leaderJob.cancel()
+            assignedPartitions = consumer.assignedPartitions
+
+            // TODO: query offsets
+        }
     }
 
     companion object : LoggerHolder()

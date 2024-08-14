@@ -26,3 +26,9 @@ fun KueueConnectedConsumerModel.balance(partitions: Set<KueuePartitionIndex>): K
     version = version + 1,
     updatedAt = now()
 )
+
+fun KueueConnectedConsumerModel.heartbeat(): KueueConnectedConsumerModel = copy(
+    version = version + 1,
+    lastHeartbeat = now(),
+    updatedAt = now()
+)

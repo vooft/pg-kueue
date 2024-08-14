@@ -15,6 +15,7 @@ import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
 import io.github.vooft.kueue.persistence.KueuePersister
 import io.github.vooft.kueue.persistence.balance
+import io.github.vooft.kueue.persistence.findConnectedConsumer
 import io.github.vooft.kueue.persistence.heartbeat
 import io.github.vooft.kueue.persistence.installLeader
 import io.github.vooft.kueue.persistence.isStale
@@ -26,20 +27,6 @@ class KueueConsumerService<C, KC : KueueConnection<C>>(
     private val connectionProvider: KueueConnectionProvider<C, KC>,
     private val persister: KueuePersister<C, KC>,
 ) {
-    suspend fun connectConsumer(consumer: KueueConsumerName, topic: KueueTopic, group: KueueConsumerGroup) {
-        connectionProvider.withAcquiredConnection { connection ->
-            persister.upsert(
-                model = KueueConnectedConsumerModel(
-                    consumerName = consumer,
-                    groupName = group,
-                    topic = topic,
-                    status = KueueConnectedConsumerModel.KueueConnectedConsumerStatus.UNBALANCED,
-                ),
-                connection = connection
-            )
-        }
-    }
-
     suspend fun isLeader(consumer: KueueConsumerName, topic: KueueTopic, group: KueueConsumerGroup): Boolean {
         return connectionProvider.withRetryingAcquiredConnection { connection ->
             val leaderLock = persister.findConsumerGroupLeaderLock(topic, group, connection)
@@ -102,6 +89,22 @@ class KueueConsumerService<C, KC : KueueConnection<C>>(
                     staleConsumers.forEach { persister.delete(it, connection) }
                 }
             }
+        }
+    }
+
+    suspend fun heartbeat(consumer: KueueConsumerName, topic: KueueTopic, group: KueueConsumerGroup): KueueConnectedConsumerModel {
+        return connectionProvider.withRetryingAcquiredConnection { connection ->
+            val consumerModel = persister.findConnectedConsumer(consumer, topic, group, connection) ?: persister.upsert(
+                model = KueueConnectedConsumerModel(
+                    consumerName = consumer,
+                    groupName = group,
+                    topic = topic,
+                    status = KueueConnectedConsumerModel.KueueConnectedConsumerStatus.UNBALANCED,
+                ),
+                connection = connection
+            )
+
+            persister.upsert(consumerModel.heartbeat(), connection)
         }
     }
 }
