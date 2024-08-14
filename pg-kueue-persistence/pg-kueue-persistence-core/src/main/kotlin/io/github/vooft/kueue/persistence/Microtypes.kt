@@ -19,6 +19,9 @@ value class KueueValue(val value: String)
 @JvmInline
 value class KueueConsumerGroup(val group: String)
 
+@JvmInline
+value class KueueConsumerName(val name: String)
+
 interface KueueTopicPartitionOffset {
     val topic: KueueTopic
     val partitionIndex: KueuePartitionIndex
