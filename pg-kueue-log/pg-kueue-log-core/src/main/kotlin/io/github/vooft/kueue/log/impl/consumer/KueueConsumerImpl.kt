@@ -93,15 +93,22 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
                 consumedOffsets = consumerDao.queryCommittedOffsets(consumer.assignedPartitions, topic, consumerGroup)
             }
 
-            val receivedMessages = consumedOffsets.flatMap { (partition, offset) ->
-                poller.poll(topic, partition, offset, MAX_POLL_BATCH)
-            }
+            val messagesPerPartition = consumedOffsets.map { (partition, offset) ->
+                partition to poller.poll(topic, partition, offset, MAX_POLL_BATCH)
+            }.toMap()
+
+            val receivedMessages = messagesPerPartition.flatMap { it.value }
 
             for (receivedMessage in receivedMessages) {
                 messages.send(receivedMessage)
             }
 
             consumedOffsets = consumedOffsets + receivedMessages.associate { it.partitionIndex to it.partitionOffset }
+
+            // delay only if we read all the remaining messages
+            if (messagesPerPartition.values.all { it.size < MAX_POLL_BATCH }) {
+                delay(HEARTBEAT_DELAY)
+            }
         }
     }
 
