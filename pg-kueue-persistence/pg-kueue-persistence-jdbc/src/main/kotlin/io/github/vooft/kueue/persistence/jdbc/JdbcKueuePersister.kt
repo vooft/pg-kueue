@@ -5,12 +5,14 @@ import io.github.vooft.kueue.OptimisticLockingException
 import io.github.vooft.kueue.common.LoggerHolder
 import io.github.vooft.kueue.common.withNonCancellable
 import io.github.vooft.kueue.common.withVirtualThreadDispatcher
+import io.github.vooft.kueue.generated.sql.tables.references.CONNECTED_CONSUMERS
 import io.github.vooft.kueue.generated.sql.tables.references.CONSUMER_GROUPS
 import io.github.vooft.kueue.generated.sql.tables.references.CONSUMER_GROUP_LEADER_LOCKS
 import io.github.vooft.kueue.generated.sql.tables.references.MESSAGES
 import io.github.vooft.kueue.generated.sql.tables.references.TOPICS
 import io.github.vooft.kueue.generated.sql.tables.references.TOPIC_PARTITIONS
 import io.github.vooft.kueue.jdbc.JdbcKueueConnection
+import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
 import io.github.vooft.kueue.persistence.KueueConsumerGroupModel
@@ -81,6 +83,22 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
                 )
                 .fetchOne()
                 ?.toModel()
+        }
+    }
+
+    override suspend fun findConnectedConsumers(
+        topic: KueueTopic,
+        group: KueueConsumerGroup,
+        connection: Connection
+    ): List<KueueConnectedConsumerModel> {
+        return connection.dsl {
+            selectFrom(CONNECTED_CONSUMERS)
+                .where(
+                    CONNECTED_CONSUMERS.TOPIC.eq(topic.topic)
+                        .and(CONNECTED_CONSUMERS.GROUP_NAME.eq(group.group))
+                )
+                .fetch()
+                .map { it.toModel() }
         }
     }
 
@@ -231,6 +249,37 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
                     CONSUMER_GROUP_LEADER_LOCKS.GROUP_NAME.eq(model.group.group)
                         .and(CONSUMER_GROUP_LEADER_LOCKS.TOPIC.eq(model.topic.topic))
                         .and(CONSUMER_GROUP_LEADER_LOCKS.CONSUMER_NAME.eq(model.consumer.name))
+                )
+                .fetchSingle()
+                .toModel()
+        }
+    }
+
+    override suspend fun upsert(model: KueueConnectedConsumerModel, connection: Connection): KueueConnectedConsumerModel {
+        logger.debug { "Upserting $model" }
+
+        return connection.dsl {
+            val record = model.toRecord()
+            val inserted = insertInto(CONNECTED_CONSUMERS)
+                .set(record)
+                .onConflict(CONNECTED_CONSUMERS.CONSUMER_NAME, CONNECTED_CONSUMERS.TOPIC, CONNECTED_CONSUMERS.GROUP_NAME)
+                .where(CONNECTED_CONSUMERS.VERSION.eq(model.version - 1))
+                .doNothing()
+                .execute()
+
+            if (inserted == 0) {
+                throw OptimisticLockingException(
+                    "ConnectedConsumer version conflict with consumerName=${model.consumerName.name}, " +
+                        "topic=${model.topic.topic}, groupName=${model.groupName.group} " +
+                        "expected version=${model.version - 1}"
+                )
+            }
+
+            selectFrom(CONNECTED_CONSUMERS)
+                .where(
+                    CONNECTED_CONSUMERS.CONSUMER_NAME.eq(model.consumerName.name),
+                    CONNECTED_CONSUMERS.TOPIC.eq(model.topic.topic),
+                    CONNECTED_CONSUMERS.GROUP_NAME.eq(model.groupName.group)
                 )
                 .fetchSingle()
                 .toModel()

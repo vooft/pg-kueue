@@ -1,11 +1,15 @@
+@file:Suppress("detekt:TooManyFunctions")
+
 package io.github.vooft.kueue.persistence.jdbc
 
 import io.github.vooft.kueue.KueueTopic
+import io.github.vooft.kueue.generated.sql.tables.records.ConnectedConsumersRecord
 import io.github.vooft.kueue.generated.sql.tables.records.ConsumerGroupLeaderLocksRecord
 import io.github.vooft.kueue.generated.sql.tables.records.ConsumerGroupsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.MessagesRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicPartitionsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicsRecord
+import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
 import io.github.vooft.kueue.persistence.KueueConsumerGroupModel
@@ -100,6 +104,28 @@ internal fun ConsumerGroupLeaderLocksRecord.toModel() = KueueConsumerGroupLeader
     group = KueueConsumerGroup(groupName),
     topic = KueueTopic(topic),
     consumer = KueueConsumerName(consumerName),
+    version = version,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    lastHeartbeat = lastHeartbeat
+)
+
+internal fun KueueConnectedConsumerModel.toRecord() = ConnectedConsumersRecord(
+    consumerName = consumerName.name,
+    groupName = groupName.group,
+    topic = topic.topic,
+    assignedPartitions = assignedPartitions.map { it.index }.toTypedArray(),
+    version = version,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    lastHeartbeat = lastHeartbeat
+)
+
+internal fun ConnectedConsumersRecord.toModel() = KueueConnectedConsumerModel(
+    consumerName = KueueConsumerName(consumerName),
+    groupName = KueueConsumerGroup(groupName),
+    topic = KueueTopic(topic),
+    assignedPartitions = assignedPartitions.filterNotNull().map { KueuePartitionIndex(it) }.toSet(),
     version = version,
     createdAt = createdAt,
     updatedAt = updatedAt,

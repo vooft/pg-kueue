@@ -17,7 +17,12 @@ data class KueueConsumerGroupModel(
     }
 }
 
-fun KueueConsumerGroupModel.rebalance(): KueueConsumerGroupModel {
+fun KueueConsumerGroupModel.markRebalancing(): KueueConsumerGroupModel {
     check(status == KueueConsumerGroupModel.KueueConsumerGroupStatus.BALANCED) { "Consumer group is not balanced" }
     return copy(status = KueueConsumerGroupModel.KueueConsumerGroupStatus.REBALANCING, version = version + 1, updatedAt = now())
+}
+
+fun KueueConsumerGroupModel.markBalanced(): KueueConsumerGroupModel {
+    check(status == KueueConsumerGroupModel.KueueConsumerGroupStatus.REBALANCING) { "Consumer group is not rebalancing" }
+    return copy(status = KueueConsumerGroupModel.KueueConsumerGroupStatus.BALANCED, version = version + 1, updatedAt = now())
 }

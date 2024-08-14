@@ -9,6 +9,8 @@ interface KueuePersister<C, KC : KueueConnection<C>> {
     suspend fun findConsumerGroup(group: KueueConsumerGroup, connection: C): KueueConsumerGroupModel?
     suspend fun findConsumerGroupLeaderLock(topic: KueueTopic, group: KueueConsumerGroup, connection: C): KueueConsumerGroupLeaderLock?
 
+    suspend fun findConnectedConsumers(topic: KueueTopic, group: KueueConsumerGroup, connection: C): List<KueueConnectedConsumerModel>
+
     suspend fun getMessages(
         topic: KueueTopic,
         partitionIndex: KueuePartitionIndex,
@@ -22,6 +24,7 @@ interface KueuePersister<C, KC : KueueConnection<C>> {
     suspend fun upsert(model: KueueMessageModel, connection: C): KueueMessageModel
     suspend fun upsert(model: KueueConsumerGroupModel, connection: C): KueueConsumerGroupModel
     suspend fun upsert(model: KueueConsumerGroupLeaderLock, connection: C): KueueConsumerGroupLeaderLock
+    suspend fun upsert(model: KueueConnectedConsumerModel, connection: C): KueueConnectedConsumerModel
 
     suspend fun <T> withTransaction(kueueConnection: KC, block: suspend (C) -> T): T
 }
