@@ -100,6 +100,7 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
 
             val receivedMessages = messagesPerPartition.flatMap { it.value }
 
+            // TODO: send in a background job and only update heartbeat, without querying next messages, while running
             for (receivedMessage in receivedMessages) {
                 messages.send(receivedMessage)
             }
