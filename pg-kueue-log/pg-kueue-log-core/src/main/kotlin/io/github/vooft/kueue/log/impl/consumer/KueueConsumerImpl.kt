@@ -5,6 +5,8 @@ import io.github.vooft.kueue.KueueTopic
 import io.github.vooft.kueue.common.LoggerHolder
 import io.github.vooft.kueue.common.loggingExceptionHandler
 import io.github.vooft.kueue.log.KueueConsumer
+import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel.Companion.MAX_POLL_BATCH
+import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel.Companion.POLL_TIMEOUT
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock.Companion.HEARTBEAT_DELAY
 import io.github.vooft.kueue.persistence.KueueConsumerMessagePoller
@@ -34,8 +36,16 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
 
     private val coroutineScope = CoroutineScope(SupervisorJob() + loggingExceptionHandler())
 
-    private val leaderJob = coroutineScope.launch(start = CoroutineStart.LAZY) { leaderLoop() }
-    private val pollJob = coroutineScope.launch(start = CoroutineStart.LAZY) { pollLoop() }
+    private val leaderJob = coroutineScope.launch(start = CoroutineStart.LAZY) { leaderLoop() }.apply {
+        invokeOnCompletion {
+            logger.info(it) { "Leader job $consumerName completed" }
+        }
+    }
+    private val pollJob = coroutineScope.launch(start = CoroutineStart.LAZY) { pollLoop() }.apply {
+        invokeOnCompletion {
+            logger.info(it) { "Poll job $consumerName completed" }
+        }
+    }
 
     override val messages = Channel<KueueMessageModel>()
 
@@ -109,12 +119,10 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
 
             // delay only if we read all the remaining messages
             if (messagesPerPartition.values.all { it.size < MAX_POLL_BATCH }) {
-                delay(HEARTBEAT_DELAY)
+                delay(POLL_TIMEOUT)
             }
         }
     }
 
     companion object : LoggerHolder()
 }
-
-private const val MAX_POLL_BATCH = 10

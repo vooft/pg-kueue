@@ -2,6 +2,7 @@ package io.github.vooft.kueue.persistence
 
 import io.github.vooft.kueue.KueueTopic
 import java.time.Instant
+import kotlin.time.Duration.Companion.seconds
 
 data class KueueConnectedConsumerModel(
     val consumerName: KueueConsumerName,
@@ -17,6 +18,11 @@ data class KueueConnectedConsumerModel(
     enum class KueueConnectedConsumerStatus {
         BALANCED,
         UNBALANCED
+    }
+
+    companion object {
+        val POLL_TIMEOUT = 1.seconds
+        const val MAX_POLL_BATCH = 10
     }
 }
 
