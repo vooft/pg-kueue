@@ -21,6 +21,7 @@ import io.github.vooft.kueue.persistence.findConnectedConsumer
 import io.github.vooft.kueue.persistence.heartbeat
 import io.github.vooft.kueue.persistence.installLeader
 import io.github.vooft.kueue.persistence.isStale
+import io.github.vooft.kueue.persistence.withOffset
 import io.github.vooft.kueue.retryingOptimisticLockingException
 import java.time.Instant
 import kotlin.time.toJavaDuration
@@ -126,6 +127,29 @@ class KueueConsumerDao<C, KC : KueueConnection<C>>(
             )
 
             offset.offset
+        }
+    }
+
+    suspend fun commitOffset(
+        partition: KueuePartitionIndex,
+        offset: KueuePartitionOffset,
+        topic: KueueTopic,
+        group: KueueConsumerGroup
+    ) {
+        retryingOptimisticLockingException {
+            connectionProvider.withAcquiredConnection { connection ->
+                val committedOffset = persister.findCommittedOffset(group, topic, partition, connection) ?: persister.upsert(
+                    model = KueueCommittedOffsetModel(
+                        group = group,
+                        topic = topic,
+                        partitionIndex = partition,
+                        offset = KueuePartitionOffset(-1),
+                    ),
+                    connection = connection
+                )
+
+                persister.upsert(committedOffset.withOffset(offset), connection)
+            }
         }
     }
 }

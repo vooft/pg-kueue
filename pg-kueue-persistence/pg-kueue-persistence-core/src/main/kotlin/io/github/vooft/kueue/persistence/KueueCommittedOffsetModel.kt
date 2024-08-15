@@ -12,3 +12,9 @@ data class KueueCommittedOffsetModel(
     val createdAt: Instant = now(),
     val updatedAt: Instant = now()
 )
+
+fun KueueCommittedOffsetModel.withOffset(newOffset: KueuePartitionOffset): KueueCommittedOffsetModel = copy(
+    offset = newOffset,
+    version = version + 1,
+    updatedAt = now()
+)

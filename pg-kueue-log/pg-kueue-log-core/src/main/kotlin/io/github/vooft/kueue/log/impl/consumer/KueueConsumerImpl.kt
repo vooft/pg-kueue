@@ -56,7 +56,7 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
     }
 
     override suspend fun commit(offset: KueueTopicPartitionOffset) {
-        TODO("Not yet implemented")
+        consumerDao.commitOffset(partition = offset.partitionIndex, offset = offset.partitionOffset, topic = topic, group = consumerGroup)
     }
 
     override suspend fun close() {
