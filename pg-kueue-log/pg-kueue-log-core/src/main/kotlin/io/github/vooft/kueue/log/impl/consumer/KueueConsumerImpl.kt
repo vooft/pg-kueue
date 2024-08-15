@@ -24,7 +24,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 
 class KueueConsumerImpl<C, KC : KueueConnection<C>>(
     override val topic: KueueTopic,
@@ -84,9 +86,10 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
         }
     }
 
-    private suspend fun pollLoop() = coroutineScope {
-        var nextOffsets = mapOf<KueuePartitionIndex, KueuePartitionOffset>()
+    private suspend fun pollLoop() = supervisorScope {
+        val nextOffsets = AtomicReference(mapOf<KueuePartitionIndex, KueuePartitionOffset>())
         var latestGroupVersion = -1
+        var sendJob = launch { }
         while (isActive) {
             val consumerModel = consumerDao.heartbeat(consumerName, topic, consumerGroup)
             val groupModel = consumerDao.getGroup(consumerGroup)
@@ -100,34 +103,44 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
                 val assignedPartitions = consumerModel.assignedPartitions
 
                 // subscribe to new partitions
-                val newPartitions = assignedPartitions - nextOffsets.keys
+                val newPartitions = assignedPartitions - nextOffsets.get().keys
                 newPartitions.forEach { poller.subscribe(topic, it) }
 
                 // unsubscribe from old partitions
-                val oldPartitions = nextOffsets.keys - assignedPartitions
+                val oldPartitions = nextOffsets.get().keys - assignedPartitions
                 oldPartitions.forEach { poller.unsubscribe(topic, it) }
 
-                nextOffsets = consumerDao.queryCommittedOffsets(consumerModel.assignedPartitions, topic, consumerGroup)
+                nextOffsets.set(consumerDao.queryCommittedOffsets(consumerModel.assignedPartitions, topic, consumerGroup))
             }
 
-            val messagesPerPartition = nextOffsets.map { (partition, offset) ->
-                partition to poller.poll(topic, partition, offset, MAX_POLL_BATCH)
-            }.toMap()
+            if (!sendJob.isActive) {
+                val messagesPerPartition = nextOffsets.get().map { (partition, offset) ->
+                    partition to poller.poll(topic, partition, offset, MAX_POLL_BATCH)
+                }.toMap()
 
-            val receivedMessages = messagesPerPartition.flatMap { it.value }
+                sendJob = launch {
+                    val receivedMessages = messagesPerPartition.flatMap { it.value }
 
-            // TODO: send in a background job and only update heartbeat, without querying next messages, while running
-            for (receivedMessage in receivedMessages) {
-                messages.send(receivedMessage)
-            }
+                    // TODO: send in a background job and only update heartbeat, without querying next messages, while running
+                    for (receivedMessage in receivedMessages) {
+                        messages.send(receivedMessage)
+                        nextOffsets.getAndUpdate { it + (receivedMessage.partitionIndex to (receivedMessage.partitionOffset + 1)) }
+                    }
+                }
 
-            nextOffsets = nextOffsets + messagesPerPartition.map { (partition, messages) ->
-                partition to (messages.maxBy { it.partitionOffset.offset }.partitionOffset + 1)
-            }
+                // if we read everything on all partitions, then just wait for a whole timeout
+                if (messagesPerPartition.all { it.value.size < MAX_POLL_BATCH }) {
+                    delay(POLL_TIMEOUT)
+                }
+            } else {
+                val joinJob = launch { sendJob.join() }
+                val monitorJob = launch {
+                    delay(POLL_TIMEOUT)
+                    joinJob.cancel()
+                }
 
-            // delay only if we read all the remaining messages
-            if (messagesPerPartition.values.all { it.size < MAX_POLL_BATCH }) {
-                delay(POLL_TIMEOUT)
+                joinJob.join()
+                monitorJob.cancel()
             }
         }
     }
