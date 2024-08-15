@@ -130,12 +130,7 @@ class KueueConsumerDao<C, KC : KueueConnection<C>>(
         }
     }
 
-    suspend fun commitOffset(
-        partition: KueuePartitionIndex,
-        offset: KueuePartitionOffset,
-        topic: KueueTopic,
-        group: KueueConsumerGroup
-    ) {
+    suspend fun commitOffset(partition: KueuePartitionIndex, offset: KueuePartitionOffset, topic: KueueTopic, group: KueueConsumerGroup) {
         retryingOptimisticLockingException {
             connectionProvider.withAcquiredConnection { connection ->
                 val committedOffset = persister.findCommittedOffset(group, topic, partition, connection) ?: persister.upsert(

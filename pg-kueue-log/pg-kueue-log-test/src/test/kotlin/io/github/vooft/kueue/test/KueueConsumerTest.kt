@@ -66,12 +66,16 @@ class KueueConsumerTest : IntegrationTest() {
         }
 
         psql.createConnection("").use {
-            it.createStatement().execute("INSERT INTO topics (name, partitions, created_at) VALUES ('${singlePartitionTopic.topic}', 1, now())")
+            it.createStatement().execute(
+                "INSERT INTO topics (name, partitions, created_at) VALUES ('${singlePartitionTopic.topic}', 1, now())"
+            )
         }
 
         psql.createConnection("").use {
-            it.createStatement().execute("INSERT INTO topics (name, partitions, created_at) " +
-                    "VALUES ('${multiplePartitionTopic.topic}', $multiplePartitions, now())")
+            it.createStatement().execute(
+                "INSERT INTO topics (name, partitions, created_at) " +
+                    "VALUES ('${multiplePartitionTopic.topic}', $multiplePartitions, now())"
+            )
         }
     }
 
