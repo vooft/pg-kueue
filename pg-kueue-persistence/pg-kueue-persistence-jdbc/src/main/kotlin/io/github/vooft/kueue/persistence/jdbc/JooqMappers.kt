@@ -3,11 +3,13 @@
 package io.github.vooft.kueue.persistence.jdbc
 
 import io.github.vooft.kueue.KueueTopic
+import io.github.vooft.kueue.generated.sql.tables.records.CommittedOffsetsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.ConnectedConsumersRecord
 import io.github.vooft.kueue.generated.sql.tables.records.ConsumerGroupLeaderLocksRecord
 import io.github.vooft.kueue.generated.sql.tables.records.MessagesRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicPartitionsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicsRecord
+import io.github.vooft.kueue.persistence.KueueCommittedOffsetModel
 import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
@@ -112,4 +114,24 @@ internal fun ConnectedConsumersRecord.toModel() = KueueConnectedConsumerModel(
     createdAt = createdAt,
     updatedAt = updatedAt,
     lastHeartbeat = lastHeartbeat
+)
+
+internal fun KueueCommittedOffsetModel.toRecord() = CommittedOffsetsRecord(
+    groupName = group.group,
+    topic = topic.topic,
+    partitionIndex = partitionIndex.index,
+    partitionOffset = offset.offset,
+    version = version,
+    createdAt = createdAt,
+    updatedAt = updatedAt
+)
+
+internal fun CommittedOffsetsRecord.toModel() = KueueCommittedOffsetModel(
+    group = KueueConsumerGroup(groupName),
+    topic = KueueTopic(topic),
+    partitionIndex = KueuePartitionIndex(partitionIndex),
+    offset = KueuePartitionOffset(partitionOffset),
+    version = version,
+    createdAt = createdAt,
+    updatedAt = updatedAt
 )

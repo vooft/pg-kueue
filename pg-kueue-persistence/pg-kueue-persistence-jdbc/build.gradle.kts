@@ -6,9 +6,9 @@ plugins {
 dependencies {
     api(project(":pg-kueue-persistence:pg-kueue-persistence-core"))
     api(project(":pg-kueue-transport:pg-kueue-transport-jdbc"))
+    api(project(":pg-kueue-persistence:pg-kueue-persistence-jooq-model"))
 
     implementation(project(":pg-kueue-utils"))
-    implementation(project(":pg-kueue-persistence:pg-kueue-persistence-jooq-model"))
 
     compileOnly(libs.pg.jdbc)
 

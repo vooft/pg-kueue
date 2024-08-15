@@ -11,6 +11,7 @@ import io.github.vooft.kueue.jdbc.JdbcKueueConnection
 import io.github.vooft.kueue.log.impl.producer.KueueProducerImpl
 import io.github.vooft.kueue.persistence.KueueKey
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
+import io.github.vooft.kueue.persistence.KueuePartitionOffset
 import io.github.vooft.kueue.persistence.KueueValue
 import io.github.vooft.kueue.persistence.jdbc.JdbcKueuePersister
 import io.github.vooft.kueue.retryingOptimisticLockingException
@@ -78,7 +79,13 @@ class KueueProducerTest : IntegrationTest() {
         expectedMessages.forEach { (key, value) -> producer.produce(key, value) }
 
         val actualMessages = psql.createConnection("").use {
-            JdbcKueuePersister().getMessages(topic, KueuePartitionIndex(0), 0, expectedMessages.size + 10, it)
+            JdbcKueuePersister().getMessages(
+                topic = topic,
+                partitionIndex = KueuePartitionIndex(0),
+                firstOffset = KueuePartitionOffset(0),
+                lastOffset = KueuePartitionOffset(expectedMessages.size + 10),
+                connection = it
+            )
         }.map { it.key to it.value }
 
         actualMessages shouldBe expectedMessages
@@ -104,7 +111,13 @@ class KueueProducerTest : IntegrationTest() {
         }.joinAll()
 
         val actualMessages = psql.createConnection("").use {
-            JdbcKueuePersister().getMessages(topic, KueuePartitionIndex(0), 0, expectedMessages.size + 10, it)
+            JdbcKueuePersister().getMessages(
+                topic = topic,
+                partitionIndex = KueuePartitionIndex(0),
+                firstOffset = KueuePartitionOffset(0),
+                lastOffset = KueuePartitionOffset(expectedMessages.size + 10),
+                connection = it
+            )
         }.map { it.key to it.value }
 
         actualMessages shouldContainExactlyInAnyOrder expectedMessages
@@ -127,7 +140,12 @@ class KueueProducerTest : IntegrationTest() {
             expectedMessages.forEach { (key, value) -> producer.produce(key, value, kueueConnection) }
 
             dataSource.connection.use { nonTransactionalConnection ->
-                val msgs = JdbcKueuePersister().getMessages(topic, KueuePartitionIndex(0), 0, connection = nonTransactionalConnection)
+                val msgs = JdbcKueuePersister().getMessages(
+                    topic = topic,
+                    partitionIndex = KueuePartitionIndex(0),
+                    firstOffset = KueuePartitionOffset(0),
+                    connection = nonTransactionalConnection
+                )
                 msgs shouldHaveSize 0
             }
 
@@ -135,7 +153,13 @@ class KueueProducerTest : IntegrationTest() {
         }
 
         val actualMessages = psql.createConnection("").use {
-            JdbcKueuePersister().getMessages(topic, KueuePartitionIndex(0), 0, expectedMessages.size + 10, it)
+            JdbcKueuePersister().getMessages(
+                topic = topic,
+                partitionIndex = KueuePartitionIndex(0),
+                firstOffset = KueuePartitionOffset(0),
+                lastOffset = KueuePartitionOffset(expectedMessages.size + 10),
+                connection = it
+            )
         }.map { it.key to it.value }
 
         actualMessages shouldBe expectedMessages

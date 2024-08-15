@@ -5,18 +5,24 @@ import io.github.vooft.kueue.KueueTopic
 import io.github.vooft.kueue.common.LoggerHolder
 import io.github.vooft.kueue.common.loggingExceptionHandler
 import io.github.vooft.kueue.log.KueueConsumer
+import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel.Companion.MAX_POLL_BATCH
+import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel.Companion.POLL_TIMEOUT
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock.Companion.HEARTBEAT_DELAY
+import io.github.vooft.kueue.persistence.KueueConsumerMessagePoller
 import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.KueueMessageModel
+import io.github.vooft.kueue.persistence.KueuePartitionIndex
+import io.github.vooft.kueue.persistence.KueuePartitionOffset
 import io.github.vooft.kueue.persistence.KueueTopicPartitionOffset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -24,45 +30,98 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
     override val topic: KueueTopic,
     override val consumerGroup: KueueConsumerGroup,
     val consumerName: KueueConsumerName = KueueConsumerName(UUID.randomUUID().toString()),
-    private val consumerService: KueueConsumerService<C, KC>
+    private val consumerDao: KueueConsumerDao<C, KC>,
+    private val poller: KueueConsumerMessagePoller
 ) : KueueConsumer {
 
     private val coroutineScope = CoroutineScope(SupervisorJob() + loggingExceptionHandler())
 
     private val leaderJob = coroutineScope.launch(start = CoroutineStart.LAZY) { leaderLoop() }.apply {
-        invokeOnCompletion { logger.info(it) { "Leader loop completed for consumer=$consumerName topic=$topic, group=$consumerGroup" } }
+        invokeOnCompletion {
+            logger.info(it) { "Leader job $consumerName completed" }
+        }
+    }
+    private val pollJob = coroutineScope.launch(start = CoroutineStart.LAZY) { pollLoop() }.apply {
+        invokeOnCompletion {
+            logger.info(it) { "Poll job $consumerName completed" }
+        }
     }
 
-    override val messages: ReceiveChannel<KueueMessageModel>
-        get() = TODO("Not yet implemented")
+    override val messages = Channel<KueueMessageModel>()
 
+    @Suppress("detekt:RedundantSuspendModifier")
     suspend fun init() {
-        consumerService.connectConsumer(consumerName, topic, consumerGroup)
-
         leaderJob.start()
+        pollJob.start()
+    }
+
+    override suspend fun commit(offset: KueueTopicPartitionOffset) {
+        consumerDao.commitOffset(partition = offset.partitionIndex, offset = offset.partitionOffset, topic = topic, group = consumerGroup)
+    }
+
+    override suspend fun close() {
+        pollJob.cancel()
+        leaderJob.cancel()
+
+        messages.close()
+
+        listOf(leaderJob, pollJob).joinAll()
     }
 
     private suspend fun leaderLoop() = coroutineScope {
         while (isActive) {
-            if (!consumerService.isLeader(consumerName, topic, consumerGroup)) {
+            if (!consumerDao.isLeader(consumerName, topic, consumerGroup)) {
                 delay(HEARTBEAT_DELAY)
                 continue
             }
 
             logger.info { "I am a leader $consumerName" }
 
-            consumerService.rebalanceIfNeeded(topic, consumerGroup)
+            consumerDao.rebalanceIfNeeded(topic, consumerGroup)
 
             delay(HEARTBEAT_DELAY)
         }
     }
 
-    override suspend fun commit(offset: KueueTopicPartitionOffset) {
-        TODO("Not yet implemented")
-    }
+    private suspend fun pollLoop() = coroutineScope {
+        var consumedOffsets = mapOf<KueuePartitionIndex, KueuePartitionOffset>()
+        while (isActive) {
+            val consumer = consumerDao.heartbeat(consumerName, topic, consumerGroup)
+            val assignedPartitions = consumer.assignedPartitions
 
-    override suspend fun close() {
-        TODO("Not yet implemented")
+            // TODO: change to consumer group generation?
+            if (consumedOffsets.size != assignedPartitions.size || consumedOffsets.keys.containsAll(assignedPartitions)) {
+                // rebalance happened, need to resubscribe to partitions and query offsets
+
+                // subscribe to new partitions
+                val newPartitions = assignedPartitions - consumedOffsets.keys
+                newPartitions.forEach { poller.subscribe(topic, it) }
+
+                // unsubscribe from old partitions
+                val oldPartitions = consumedOffsets.keys - assignedPartitions
+                oldPartitions.forEach { poller.unsubscribe(topic, it) }
+
+                consumedOffsets = consumerDao.queryCommittedOffsets(consumer.assignedPartitions, topic, consumerGroup)
+            }
+
+            val messagesPerPartition = consumedOffsets.map { (partition, offset) ->
+                partition to poller.poll(topic, partition, offset, MAX_POLL_BATCH)
+            }.toMap()
+
+            val receivedMessages = messagesPerPartition.flatMap { it.value }
+
+            // TODO: send in a background job and only update heartbeat, without querying next messages, while running
+            for (receivedMessage in receivedMessages) {
+                messages.send(receivedMessage)
+            }
+
+            consumedOffsets = consumedOffsets + receivedMessages.associate { it.partitionIndex to it.partitionOffset }
+
+            // delay only if we read all the remaining messages
+            if (messagesPerPartition.values.all { it.size < MAX_POLL_BATCH }) {
+                delay(POLL_TIMEOUT)
+            }
+        }
     }
 
     companion object : LoggerHolder()
