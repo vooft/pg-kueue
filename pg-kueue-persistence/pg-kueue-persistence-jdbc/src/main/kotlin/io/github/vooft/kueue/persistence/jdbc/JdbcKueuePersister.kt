@@ -7,6 +7,7 @@ import io.github.vooft.kueue.common.withNonCancellable
 import io.github.vooft.kueue.common.withVirtualThreadDispatcher
 import io.github.vooft.kueue.generated.sql.tables.references.COMMITTED_OFFSETS
 import io.github.vooft.kueue.generated.sql.tables.references.CONNECTED_CONSUMERS
+import io.github.vooft.kueue.generated.sql.tables.references.CONSUMER_GROUPS
 import io.github.vooft.kueue.generated.sql.tables.references.CONSUMER_GROUP_LEADER_LOCKS
 import io.github.vooft.kueue.generated.sql.tables.references.MESSAGES
 import io.github.vooft.kueue.generated.sql.tables.references.TOPICS
@@ -16,6 +17,7 @@ import io.github.vooft.kueue.persistence.KueueCommittedOffsetModel
 import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
+import io.github.vooft.kueue.persistence.KueueConsumerGroupModel
 import io.github.vooft.kueue.persistence.KueueMessageModel
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
 import io.github.vooft.kueue.persistence.KueuePartitionOffset
@@ -38,6 +40,17 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
                 .where(TOPICS.NAME.eq(topic.topic))
                 .fetchSingle()
                 .toModel()
+        }
+    }
+
+    override suspend fun findGroup(group: KueueConsumerGroup, connection: Connection): KueueConsumerGroupModel? {
+        logger.debug { "findGroup(): group=$group" }
+
+        return connection.dsl {
+            selectFrom(CONSUMER_GROUPS)
+                .where(CONSUMER_GROUPS.NAME.eq(group.group))
+                .fetchOne()
+                ?.toModel()
         }
     }
 
@@ -204,6 +217,33 @@ class JdbcKueuePersister : KueuePersister<Connection, JdbcKueueConnection> {
                 MESSAGES.PARTITION_INDEX.eq(model.partitionIndex.index),
                 MESSAGES.PARTITION_OFFSET.eq(model.partitionOffset.offset)
             ).fetchSingle().toModel()
+        }
+    }
+
+    override suspend fun upsert(model: KueueConsumerGroupModel, connection: Connection): KueueConsumerGroupModel {
+        logger.debug { "Upserting $model" }
+
+        return connection.dsl {
+            val record = model.toRecord()
+            val inserted = insertInto(CONSUMER_GROUPS)
+                .set(record)
+                .onConflict(CONSUMER_GROUPS.NAME)
+                .doUpdate()
+                .set(record)
+                .where(CONSUMER_GROUPS.VERSION.eq(model.version - 1))
+                .execute()
+
+            if (inserted == 0) {
+                throw OptimisticLockingException(
+                    "ConsumerGroup version conflict with groupName=${model.name} " +
+                        "expected version=${model.version - 1}"
+                )
+            }
+
+            selectFrom(CONSUMER_GROUPS)
+                .where(CONSUMER_GROUPS.NAME.eq(model.name.group))
+                .fetchSingle()
+                .toModel()
         }
     }
 

@@ -149,7 +149,7 @@ class KueueConsumerTest : IntegrationTest() {
 
     @Test
     fun `should consume messages`(): Unit = runBlocking(Dispatchers.Default + loggingExceptionHandler()) {
-        val messagesCount = 10
+        val messagesCount = 100
         val producer = KueueProducerImpl(
             topic = multiplePartitionTopic,
             connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource),
@@ -185,7 +185,7 @@ class KueueConsumerTest : IntegrationTest() {
                     for (message in consumer.messages) {
                         println("received $message")
                         consumedMutex.withLock { consumed.add(message) }
-                        consumer.commit(message)
+//                        consumer.commit(message)
                     }
                 }
             }

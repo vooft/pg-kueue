@@ -6,6 +6,7 @@ import io.github.vooft.kueue.KueueTopic
 @Suppress("detekt:TooManyFunctions")
 interface KueuePersister<C, KC : KueueConnection<C>> {
     suspend fun getTopic(topic: KueueTopic, connection: C): KueueTopicModel
+    suspend fun findGroup(group: KueueConsumerGroup, connection: C): KueueConsumerGroupModel?
     suspend fun findTopicPartition(topic: KueueTopic, partitionIndex: KueuePartitionIndex, connection: C): KueueTopicPartitionModel?
     suspend fun findConsumerGroupLeaderLock(topic: KueueTopic, group: KueueConsumerGroup, connection: C): KueueConsumerGroupLeaderLock?
 
@@ -29,6 +30,7 @@ interface KueuePersister<C, KC : KueueConnection<C>> {
     suspend fun upsert(model: KueueTopicModel, connection: C): KueueTopicModel
     suspend fun upsert(model: KueueTopicPartitionModel, connection: C): KueueTopicPartitionModel
     suspend fun upsert(model: KueueMessageModel, connection: C): KueueMessageModel
+    suspend fun upsert(model: KueueConsumerGroupModel, connection: C): KueueConsumerGroupModel
     suspend fun upsert(model: KueueConsumerGroupLeaderLock, connection: C): KueueConsumerGroupLeaderLock
     suspend fun upsert(model: KueueConnectedConsumerModel, connection: C): KueueConnectedConsumerModel
     suspend fun upsert(model: KueueCommittedOffsetModel, connection: C): KueueCommittedOffsetModel
@@ -46,3 +48,8 @@ suspend fun <C, KC : KueueConnection<C>> KueuePersister<C, KC>.findConnectedCons
 ): KueueConnectedConsumerModel? = findConnectedConsumers(topic, group, connection).find {
     it.consumerName == consumerName
 }
+
+suspend fun <C, KC : KueueConnection<C>> KueuePersister<C, KC>.getOrCreateGroup(
+    group: KueueConsumerGroup,
+    connection: C
+): KueueConsumerGroupModel = findGroup(group, connection) ?: upsert(KueueConsumerGroupModel(name = group), connection)

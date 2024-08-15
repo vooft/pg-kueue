@@ -6,6 +6,7 @@ import io.github.vooft.kueue.KueueTopic
 import io.github.vooft.kueue.generated.sql.tables.records.CommittedOffsetsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.ConnectedConsumersRecord
 import io.github.vooft.kueue.generated.sql.tables.records.ConsumerGroupLeaderLocksRecord
+import io.github.vooft.kueue.generated.sql.tables.records.ConsumerGroupsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.MessagesRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicPartitionsRecord
 import io.github.vooft.kueue.generated.sql.tables.records.TopicsRecord
@@ -13,6 +14,7 @@ import io.github.vooft.kueue.persistence.KueueCommittedOffsetModel
 import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
+import io.github.vooft.kueue.persistence.KueueConsumerGroupModel
 import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.KueueKey
 import io.github.vooft.kueue.persistence.KueueMessageModel
@@ -131,6 +133,20 @@ internal fun CommittedOffsetsRecord.toModel() = KueueCommittedOffsetModel(
     topic = KueueTopic(topic),
     partitionIndex = KueuePartitionIndex(partitionIndex),
     offset = KueuePartitionOffset(partitionOffset),
+    version = version,
+    createdAt = createdAt,
+    updatedAt = updatedAt
+)
+
+internal fun KueueConsumerGroupModel.toRecord() = ConsumerGroupsRecord(
+    name = name.group,
+    version = version,
+    createdAt = createdAt,
+    updatedAt = updatedAt
+)
+
+internal fun ConsumerGroupsRecord.toModel() = KueueConsumerGroupModel(
+    name = KueueConsumerGroup(name),
     version = version,
     createdAt = createdAt,
     updatedAt = updatedAt

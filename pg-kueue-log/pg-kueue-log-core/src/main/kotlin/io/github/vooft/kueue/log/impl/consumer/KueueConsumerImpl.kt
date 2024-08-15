@@ -51,6 +51,7 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
 
     @Suppress("detekt:RedundantSuspendModifier")
     suspend fun init() {
+        consumerDao.init(consumerGroup)
         leaderJob.start()
         pollJob.start()
     }
@@ -84,27 +85,32 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
     }
 
     private suspend fun pollLoop() = coroutineScope {
-        var consumedOffsets = mapOf<KueuePartitionIndex, KueuePartitionOffset>()
+        var nextOffsets = mapOf<KueuePartitionIndex, KueuePartitionOffset>()
+        var latestGroupVersion = -1
         while (isActive) {
-            val consumer = consumerDao.heartbeat(consumerName, topic, consumerGroup)
-            val assignedPartitions = consumer.assignedPartitions
+            val consumerModel = consumerDao.heartbeat(consumerName, topic, consumerGroup)
+            val groupModel = consumerDao.getGroup(consumerGroup)
 
-            // TODO: change to consumer group generation?
-            if (consumedOffsets.size != assignedPartitions.size || consumedOffsets.keys.containsAll(assignedPartitions)) {
+            if (latestGroupVersion != groupModel.version) {
                 // rebalance happened, need to resubscribe to partitions and query offsets
+                logger.info { "Group $consumerGroup was rebalanced, old=$latestGroupVersion, new=${groupModel.version}" }
+
+                latestGroupVersion = groupModel.version
+
+                val assignedPartitions = consumerModel.assignedPartitions
 
                 // subscribe to new partitions
-                val newPartitions = assignedPartitions - consumedOffsets.keys
+                val newPartitions = assignedPartitions - nextOffsets.keys
                 newPartitions.forEach { poller.subscribe(topic, it) }
 
                 // unsubscribe from old partitions
-                val oldPartitions = consumedOffsets.keys - assignedPartitions
+                val oldPartitions = nextOffsets.keys - assignedPartitions
                 oldPartitions.forEach { poller.unsubscribe(topic, it) }
 
-                consumedOffsets = consumerDao.queryCommittedOffsets(consumer.assignedPartitions, topic, consumerGroup)
+                nextOffsets = consumerDao.queryCommittedOffsets(consumerModel.assignedPartitions, topic, consumerGroup)
             }
 
-            val messagesPerPartition = consumedOffsets.map { (partition, offset) ->
+            val messagesPerPartition = nextOffsets.map { (partition, offset) ->
                 partition to poller.poll(topic, partition, offset, MAX_POLL_BATCH)
             }.toMap()
 
@@ -115,7 +121,9 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
                 messages.send(receivedMessage)
             }
 
-            consumedOffsets = consumedOffsets + receivedMessages.associate { it.partitionIndex to it.partitionOffset }
+            nextOffsets = nextOffsets + messagesPerPartition.map { (partition, messages) ->
+                partition to (messages.maxBy { it.partitionOffset.offset }.partitionOffset + 1)
+            }
 
             // delay only if we read all the remaining messages
             if (messagesPerPartition.values.all { it.size < MAX_POLL_BATCH }) {

@@ -12,12 +12,15 @@ import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel.KueueConnec
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock.Companion.MAX_HEARTBEAT_TIMEOUT
+import io.github.vooft.kueue.persistence.KueueConsumerGroupModel
 import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
 import io.github.vooft.kueue.persistence.KueuePartitionOffset
 import io.github.vooft.kueue.persistence.KueuePersister
 import io.github.vooft.kueue.persistence.balance
+import io.github.vooft.kueue.persistence.bump
 import io.github.vooft.kueue.persistence.findConnectedConsumer
+import io.github.vooft.kueue.persistence.getOrCreateGroup
 import io.github.vooft.kueue.persistence.heartbeat
 import io.github.vooft.kueue.persistence.installLeader
 import io.github.vooft.kueue.persistence.isStale
@@ -30,6 +33,13 @@ class KueueConsumerDao<C, KC : KueueConnection<C>>(
     private val connectionProvider: KueueConnectionProvider<C, KC>,
     private val persister: KueuePersister<C, KC>,
 ) {
+
+    suspend fun init(group: KueueConsumerGroup) {
+        connectionProvider.withAcquiredConnection { connection ->
+            persister.getOrCreateGroup(group, connection)
+        }
+    }
+
     suspend fun isLeader(consumer: KueueConsumerName, topic: KueueTopic, group: KueueConsumerGroup): Boolean {
         return connectionProvider.withRetryingAcquiredConnection { connection ->
             val leaderLock = persister.findConsumerGroupLeaderLock(topic, group, connection)
@@ -69,8 +79,9 @@ class KueueConsumerDao<C, KC : KueueConnection<C>>(
 
     suspend fun rebalance(topic: KueueTopic, group: KueueConsumerGroup) {
         retryingOptimisticLockingException {
-            val (updatedConsumers, staleConsumers) = connectionProvider.withRetryingAcquiredConnection { connection ->
+            val (updatedGroup, updatedConsumers, staleConsumers) = connectionProvider.withRetryingAcquiredConnection { connection ->
                 val topicModel = persister.getTopic(topic, connection)
+                val groupModel = persister.getOrCreateGroup(group, connection)
                 val connectedConsumers = persister.findConnectedConsumers(topic, group, connection)
 
                 val staleConsumers = connectedConsumers.filter { it.isStale() }
@@ -81,13 +92,18 @@ class KueueConsumerDao<C, KC : KueueConnection<C>>(
                     assignedPartitions[it % activeConsumers.size].add(KueuePartitionIndex(it))
                 }
 
-                activeConsumers.mapIndexed { index, consumer ->
-                    consumer.balance(assignedPartitions[index])
-                } to staleConsumers
+                RebalanceResult(
+                    updatedGroup = groupModel.bump(),
+                    updatedConsumers = activeConsumers.mapIndexed { index, consumer ->
+                        consumer.balance(assignedPartitions[index])
+                    },
+                    staleConsumers = staleConsumers,
+                )
             }
 
             connectionProvider.withConnection { acquiredConnection ->
                 persister.withTransaction(acquiredConnection) { connection ->
+                    persister.upsert(updatedGroup, connection)
                     updatedConsumers.forEach { persister.upsert(it, connection) }
                     staleConsumers.forEach { persister.delete(it, connection) }
                 }
@@ -147,4 +163,14 @@ class KueueConsumerDao<C, KC : KueueConnection<C>>(
             }
         }
     }
+
+    suspend fun getGroup(group: KueueConsumerGroup): KueueConsumerGroupModel = connectionProvider.withAcquiredConnection { connection ->
+        persister.findGroup(group, connection) ?: error("Group $group not found")
+    }
 }
+
+private data class RebalanceResult(
+    val updatedGroup: KueueConsumerGroupModel,
+    val updatedConsumers: List<KueueConnectedConsumerModel>,
+    val staleConsumers: List<KueueConnectedConsumerModel>,
+)
