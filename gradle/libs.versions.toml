@@ -9,7 +9,7 @@ kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version = "7.0
 
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 
-pg-jdbc = { module = "org.postgresql:postgresql", version = "42.7.3" }
+pg-jdbc = { module = "org.postgresql:postgresql", version = "42.7.4" }
 jooq = { module = "org.jooq:jooq", version = "3.19.11" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
