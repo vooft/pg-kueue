@@ -18,16 +18,13 @@ class KueueLogImpl<C, KC : KueueConnection<C>>(
     private val persister: KueuePersister<C, KC>,
     private val poller: KueueConsumerMessagePoller
 ) : KueueLog<C, KC> {
-    override suspend fun createProducer(topic: KueueTopic): KueueProducer<C, KC> {
-        return KueueProducerImpl(topic = topic, connectionProvider = connectionProvider, persister = persister)
-    }
+    override suspend fun createProducer(topic: KueueTopic): KueueProducer<C, KC> =
+        KueueProducerImpl(topic = topic, connectionProvider = connectionProvider, persister = persister)
 
-    override suspend fun createConsumer(topic: KueueTopic, group: KueueConsumerGroup): KueueConsumer {
-        return KueueConsumerImpl(
-            topic = topic,
-            consumerGroup = group,
-            consumerDao = KueueConsumerDao(connectionProvider, persister),
-            poller = poller
-        )
-    }
+    override suspend fun createConsumer(topic: KueueTopic, group: KueueConsumerGroup): KueueConsumer = KueueConsumerImpl(
+        topic = topic,
+        consumerGroup = group,
+        consumerDao = KueueConsumerDao(connectionProvider, persister),
+        poller = poller
+    )
 }
