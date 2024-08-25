@@ -23,28 +23,33 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
+import javax.sql.DataSource
 
 class KueueProducerTest : IntegrationTest() {
 
-    private lateinit var dataSource: HikariDataSource
+    private lateinit var hikariDataSource: HikariDataSource
+    private lateinit var dataSource: DataSource
 
     private val topic = KueueTopic(UUID.randomUUID().toString())
 
     @BeforeEach
     fun setUp() {
-        dataSource = HikariDataSource(
+        hikariDataSource = HikariDataSource(
             HikariConfig().apply {
                 jdbcUrl = psql.jdbcUrl
                 username = psql.username
                 password = psql.password
             }
         )
+
+        dataSource = ProxyDataSourceBuilder.create(hikariDataSource).traceMethods().build()
 
         Flyway.configure()
             .dataSource(psql.jdbcUrl, psql.username, psql.password)
@@ -63,7 +68,7 @@ class KueueProducerTest : IntegrationTest() {
 
     @AfterEach
     fun tearDown() {
-        dataSource.close()
+        hikariDataSource.close()
     }
 
     @Test

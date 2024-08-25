@@ -11,6 +11,7 @@ import io.github.vooft.kueue.log.impl.consumer.KueueConsumerDao
 import io.github.vooft.kueue.log.impl.consumer.KueueConsumerImpl
 import io.github.vooft.kueue.log.impl.poller.PersisterKueueConsumerMessagePoller
 import io.github.vooft.kueue.log.impl.producer.KueueProducerImpl
+import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel.KueueConnectedConsumerStatus.UNBALANCED
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.KueueKey
@@ -18,26 +19,33 @@ import io.github.vooft.kueue.persistence.KueueMessageModel
 import io.github.vooft.kueue.persistence.KueueValue
 import io.github.vooft.kueue.persistence.jdbc.JdbcKueuePersister
 import io.kotest.assertions.nondeterministic.eventually
+import io.kotest.assertions.withClue
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.util.UUID
+import javax.sql.DataSource
 import kotlin.time.Duration.Companion.minutes
 
 class KueueConsumerTest : IntegrationTest() {
 
-    private lateinit var dataSource: HikariDataSource
+    private lateinit var hikariDataSource: HikariDataSource
+    private lateinit var dataSource: DataSource
 
     private val singlePartitionTopic = KueueTopic(UUID.randomUUID().toString())
     private val group = KueueConsumerGroup(UUID.randomUUID().toString())
@@ -47,13 +55,15 @@ class KueueConsumerTest : IntegrationTest() {
 
     @BeforeEach
     fun setUp() {
-        dataSource = HikariDataSource(
+        hikariDataSource = HikariDataSource(
             HikariConfig().apply {
                 jdbcUrl = psql.jdbcUrl
                 username = psql.username
                 password = psql.password
             }
         )
+
+        dataSource = ProxyDataSourceBuilder.create(hikariDataSource).traceMethods().build()
 
         Flyway.configure()
             .dataSource(psql.jdbcUrl, psql.username, psql.password)
@@ -81,7 +91,7 @@ class KueueConsumerTest : IntegrationTest() {
 
     @AfterEach
     fun tearDown() {
-        dataSource.close()
+        hikariDataSource.close()
     }
 
     @Test
@@ -150,6 +160,7 @@ class KueueConsumerTest : IntegrationTest() {
     @Test
     fun `should consume messages`(): Unit = runBlocking(Dispatchers.Default + loggingExceptionHandler()) {
         val messagesCount = 100
+        val consumersCount = 10
         val producer = KueueProducerImpl(
             topic = multiplePartitionTopic,
             connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource),
@@ -159,7 +170,7 @@ class KueueConsumerTest : IntegrationTest() {
         val messages = List(messagesCount) { producer.produce(KueueKey(it.toString()), KueueValue(it.toString())) }
 
         val connectionProvider = JdbcDataSourceKueueConnectionProvider(dataSource)
-        val consumers = List(1) {
+        val consumers = List(consumersCount) {
             KueueConsumerImpl(
                 topic = multiplePartitionTopic,
                 consumerGroup = group,
@@ -175,7 +186,15 @@ class KueueConsumerTest : IntegrationTest() {
             )
         }
 
-        consumers.forEach { it.init() }
+        consumers.map { launch { it.init() } }.joinAll()
+
+        eventually(1.minutes) {
+            val consumerModels =  psql.createConnection("").use { JdbcKueuePersister().findConnectedConsumers(multiplePartitionTopic, group, it) }
+
+            consumerModels shouldHaveSize consumersCount
+            withClue("All consumers should be balanced") { consumerModels.filter { it.status == UNBALANCED }.shouldBeEmpty() }
+
+        }
 
         val consumedMutex = Mutex()
         val consumed = mutableListOf<KueueMessageModel>()
@@ -185,7 +204,6 @@ class KueueConsumerTest : IntegrationTest() {
                     for (message in consumer.messages) {
                         println("received $message")
                         consumedMutex.withLock { consumed.add(message) }
-//                        consumer.commit(message)
                     }
                 }
             }

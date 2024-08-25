@@ -8,5 +8,6 @@ dependencies {
     testImplementation(project(":pg-kueue-persistence:pg-kueue-persistence-schema"))
 
     testImplementation(libs.bundles.test)
+    testImplementation(libs.datasource.proxy)
     testImplementation(testFixtures(project(":pg-kueue-utils")))
 }

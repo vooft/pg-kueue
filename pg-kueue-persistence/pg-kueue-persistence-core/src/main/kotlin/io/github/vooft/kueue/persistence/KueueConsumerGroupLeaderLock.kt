@@ -4,6 +4,7 @@ import io.github.vooft.kueue.KueueTopic
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock.Companion.MAX_HEARTBEAT_TIMEOUT
 import java.time.Instant
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.toJavaDuration
 
@@ -18,7 +19,8 @@ data class KueueConsumerGroupLeaderLock(
 ) {
     companion object {
         val MAX_HEARTBEAT_TIMEOUT = 30.seconds
-        val HEARTBEAT_DELAY get() = Random.nextInt(10, 15).seconds
+        val HEARTBEAT_DELAY get() = Random.nextInt(1, 5).seconds
+        val REBALANCE_WAIT_DELAY get() = Random.nextInt(50, 150).milliseconds
     }
 }
 

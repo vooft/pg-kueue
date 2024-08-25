@@ -5,16 +5,19 @@ import io.github.vooft.kueue.KueueTopic
 import io.github.vooft.kueue.common.LoggerHolder
 import io.github.vooft.kueue.common.loggingExceptionHandler
 import io.github.vooft.kueue.log.KueueConsumer
+import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel
 import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel.Companion.MAX_POLL_BATCH
 import io.github.vooft.kueue.persistence.KueueConnectedConsumerModel.Companion.POLL_TIMEOUT
 import io.github.vooft.kueue.persistence.KueueConsumerGroup
 import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock.Companion.HEARTBEAT_DELAY
+import io.github.vooft.kueue.persistence.KueueConsumerGroupLeaderLock.Companion.REBALANCE_WAIT_DELAY
 import io.github.vooft.kueue.persistence.KueueConsumerMessagePoller
 import io.github.vooft.kueue.persistence.KueueConsumerName
 import io.github.vooft.kueue.persistence.KueueMessageModel
 import io.github.vooft.kueue.persistence.KueuePartitionIndex
 import io.github.vooft.kueue.persistence.KueuePartitionOffset
 import io.github.vooft.kueue.persistence.KueueTopicPartitionOffset
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.SupervisorJob
@@ -36,18 +39,17 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
     private val poller: KueueConsumerMessagePoller
 ) : KueueConsumer {
 
-    private val coroutineScope = CoroutineScope(SupervisorJob() + loggingExceptionHandler())
+    private val coroutineScope = CoroutineScope(SupervisorJob() + CoroutineName("consumer-$consumerName") + loggingExceptionHandler())
 
-    private val leaderJob = coroutineScope.launch(start = CoroutineStart.LAZY) { leaderLoop() }.apply {
-        invokeOnCompletion {
-            logger.info(it) { "Leader job $consumerName completed" }
-        }
-    }
-    private val pollJob = coroutineScope.launch(start = CoroutineStart.LAZY) { pollLoop() }.apply {
-        invokeOnCompletion {
-            logger.info(it) { "Poll job $consumerName completed" }
-        }
-    }
+    private val leaderJob = coroutineScope.launch(
+        start = CoroutineStart.LAZY,
+        context = CoroutineName("leader-$consumerName")
+    ) { leaderLoop() }.apply { invokeOnCompletion { logger.info(it) { "Leader job $consumerName completed" } } }
+
+    private val pollJob = coroutineScope.launch(
+        start = CoroutineStart.LAZY,
+        context = CoroutineName("poll-$consumerName")
+    ) { pollLoop() }.apply { invokeOnCompletion { logger.info(it) { "Poll job $consumerName completed" } } }
 
     override val messages = Channel<KueueMessageModel>()
 
@@ -74,6 +76,7 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
     private suspend fun leaderLoop() = coroutineScope {
         while (isActive) {
             if (!consumerDao.isLeader(consumerName, topic, consumerGroup)) {
+                logger.info { "I am not a leader $consumerName" }
                 delay(HEARTBEAT_DELAY)
                 continue
             }
@@ -92,6 +95,12 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
         var sendJob = launch { }
         while (isActive) {
             val consumerModel = consumerDao.heartbeat(consumerName, topic, consumerGroup)
+            if (consumerModel.status == KueueConnectedConsumerModel.KueueConnectedConsumerStatus.UNBALANCED) {
+                logger.info { "Consumer $consumerName is unbalanced, waiting for rebalance" }
+                delay(REBALANCE_WAIT_DELAY)
+                continue
+            }
+
             val groupModel = consumerDao.getGroup(consumerGroup)
 
             if (latestGroupVersion != groupModel.version) {

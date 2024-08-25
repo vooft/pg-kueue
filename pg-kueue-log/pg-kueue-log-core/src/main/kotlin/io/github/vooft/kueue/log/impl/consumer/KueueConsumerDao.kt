@@ -35,7 +35,7 @@ class KueueConsumerDao<C, KC : KueueConnection<C>>(
 ) {
 
     suspend fun init(group: KueueConsumerGroup) {
-        connectionProvider.withAcquiredConnection { connection ->
+        connectionProvider.withRetryingAcquiredConnection { connection ->
             persister.getOrCreateGroup(group, connection)
         }
     }
