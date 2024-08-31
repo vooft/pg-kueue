@@ -45,7 +45,7 @@ tasks.withType<Test> {
 tasks.withType<LintTask> {
     source("build.gradle.kts", "settings.gradle.kts")
     exclude {
-        it.file.path.startsWith("$buildDir") && !it.file.path.endsWith("gradle.kts")
+        it.file.path.startsWith("${layout.buildDirectory.get()}") && !it.file.path.endsWith("gradle.kts")
     }
     dependsOn("formatKotlin")
 }
@@ -53,7 +53,7 @@ tasks.withType<LintTask> {
 tasks.withType<FormatTask> {
     source("build.gradle.kts", "settings.gradle.kts")
     exclude {
-        it.file.path.startsWith("$buildDir") && !it.file.path.endsWith("gradle.kts")
+        it.file.path.startsWith("${layout.buildDirectory.get()}") && !it.file.path.endsWith("gradle.kts")
     }
 }
 

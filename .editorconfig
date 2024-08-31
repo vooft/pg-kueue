@@ -1,6 +1,3 @@
-# PLEASE COMMIT THIS FILE TO VERSION CONTROL
-# THIS IS AN AUTO-GENERATED FILE, PLEASE DO NOT CHANGE MANUALLY
-# You can override settings in subdirectories by creating a new .editorconfig file.
 root = true
 
 [*]
