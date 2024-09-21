@@ -34,7 +34,7 @@ val kueueLog = KueueLog.jdbc(dataSource)
 // topic must exist before creating a consumer
 val consumer = kueueLog.createConsumer(KueueTopic("my-topic"), KueueConsumerGroup("my-group"))
 
-// messages are an instance of ReceiveChannel and could be consumed using a for loop 
+// consumer.messages is an instance of ReceiveChannel and could be consumed using a for loop 
 for (message in consumer.messages) {
     println(message)
 }
