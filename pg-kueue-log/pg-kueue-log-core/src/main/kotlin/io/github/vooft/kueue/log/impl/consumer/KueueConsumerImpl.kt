@@ -44,12 +44,12 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
     private val leaderJob = coroutineScope.launch(
         start = CoroutineStart.LAZY,
         context = CoroutineName("leader-$consumerName")
-    ) { leaderLoop() }.apply { invokeOnCompletion { logger.info(it) { "Leader job $consumerName completed" } } }
+    ) { leaderLoop() }.apply { invokeOnCompletion { logger.debug(it) { "Leader job $consumerName completed" } } }
 
     private val pollJob = coroutineScope.launch(
         start = CoroutineStart.LAZY,
         context = CoroutineName("poll-$consumerName")
-    ) { pollLoop() }.apply { invokeOnCompletion { logger.info(it) { "Poll job $consumerName completed" } } }
+    ) { pollLoop() }.apply { invokeOnCompletion { logger.debug(it) { "Poll job $consumerName completed" } } }
 
     override val messages = Channel<KueueMessageModel>()
 
@@ -76,12 +76,12 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
     private suspend fun leaderLoop() = coroutineScope {
         while (isActive) {
             if (!consumerDao.isLeader(consumerName, topic, consumerGroup)) {
-                logger.info { "I am not a leader $consumerName" }
+                logger.debug { "I am not a leader $consumerName" }
                 delay(HEARTBEAT_DELAY)
                 continue
             }
 
-            logger.info { "I am a leader $consumerName" }
+            logger.debug { "I am a leader $consumerName" }
 
             consumerDao.rebalanceIfNeeded(topic, consumerGroup)
 
@@ -109,7 +109,7 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
         suspend fun iterate() {
             val consumerModel = consumerDao.heartbeat(consumerName, topic, consumerGroup)
             if (consumerModel.status == KueueConnectedConsumerModel.KueueConnectedConsumerStatus.UNBALANCED) {
-                logger.info { "Consumer $consumerName is unbalanced, waiting for rebalance" }
+                logger.debug { "Consumer $consumerName is unbalanced, waiting for rebalance" }
                 delay(REBALANCE_WAIT_DELAY)
                 return
             }
@@ -118,7 +118,7 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
 
             if (latestGroupVersion != groupModel.version) {
                 // rebalance happened, need to resubscribe to partitions and query offsets
-                logger.info { "Group $consumerGroup was rebalanced, old=$latestGroupVersion, new=${groupModel.version}" }
+                logger.debug { "Group $consumerGroup was rebalanced, old=$latestGroupVersion, new=${groupModel.version}" }
 
                 latestGroupVersion = groupModel.version
 
