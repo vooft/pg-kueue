@@ -66,7 +66,7 @@ Kotlin Coroutines PostgresSQL-based message queue using LISTEN/NOTIFY
 
 Everything is String-based and for now just follows normal LISTEN/NOTIFY rules.
 
-## JDBC usage
+## Usage
 
 ```kotlin
 repositories {
@@ -103,7 +103,7 @@ All subscriptions will be closed automatically when Kueue is closed:
 kueue.close()
 ```
 
-## Transactional usage
+### Transaction
 To publish a message using existing transaction, you should provide the transactional connection.
 
 Normally, API accepts a instance of a wrapped connection `KueueConnection`, there is a helper method to create it:
