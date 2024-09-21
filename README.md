@@ -53,6 +53,14 @@ val producer = kueueLog.createProducer(KueueTopic("test"))
 producer.produce(KueueKey("my-key"), KueueValue("my-value"))
 ```
 
+## Consumer rebalancing
+It is possible to have multiple consumers in the same group and they will be balanced in the same was as Kafka consumers:
+* One consumer will be chosen a leader (based on acquiring a lock in a table)
+* Leader will be responsible for assigning partitions to other consumers
+* Leader will be responsible for monitoring liveness of other consumers and rebalancing if consumer connects or disconnects
+* Individual consumers will be responsible for committing offsets based on user's request
+  * Please note, if you don't commit the offset, after rebalancing the consumer will start consuming from the last committed offset
+
 # pg-kueue-pubsub
 Kotlin Coroutines PostgresSQL-based message queue using LISTEN/NOTIFY
 
