@@ -37,6 +37,7 @@ interface KueuePersister<C, KC : KueueConnection<C>> {
 
     suspend fun delete(model: KueueConnectedConsumerModel, connection: C)
 
+    // TODO: move to a better place
     suspend fun <T> withTransaction(kueueConnection: KC, block: suspend (C) -> T): T
 }
 
