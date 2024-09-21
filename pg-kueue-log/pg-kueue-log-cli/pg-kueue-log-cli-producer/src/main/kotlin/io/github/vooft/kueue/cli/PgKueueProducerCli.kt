@@ -18,7 +18,7 @@ import kotlinx.coroutines.runBlocking
 import java.util.UUID
 import javax.sql.DataSource
 
-class PgKueueConsumerCli : CliktCommand() {
+class PgKueueProducerCli : CliktCommand() {
     val jdbcUrl: String by option().required().help("JDBC URL to connect to the database")
     val username: String by option().required().help("Database username to connect to the database")
     val password: String by option().required().help("Database password to connect to the database")
@@ -52,4 +52,4 @@ class PgKueueConsumerCli : CliktCommand() {
     }
 }
 
-fun main(args: Array<String>) = PgKueueConsumerCli().main(args)
+fun main(args: Array<String>) = PgKueueProducerCli().main(args)

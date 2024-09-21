@@ -14,6 +14,7 @@ import io.github.vooft.kueue.persistence.KueueTopicPartitionModel
 import io.github.vooft.kueue.persistence.KueueValue
 import io.github.vooft.kueue.persistence.incrementNextPartitionOffset
 import io.github.vooft.kueue.retryingOptimisticLockingException
+import kotlin.math.absoluteValue
 
 class KueueProducerImpl<C, KC : KueueConnection<C>>(
     override val topic: KueueTopic,
@@ -64,4 +65,6 @@ class KueueProducerImpl<C, KC : KueueConnection<C>>(
     companion object : LoggerHolder()
 }
 
-private fun KueueKey.partition(partitionCount: Int): KueuePartitionIndex = KueuePartitionIndex(key.hashCode() % partitionCount)
+private fun KueueKey.partition(partitionCount: Int): KueuePartitionIndex = KueuePartitionIndex(
+    key.hashCode().absoluteValue % partitionCount
+)

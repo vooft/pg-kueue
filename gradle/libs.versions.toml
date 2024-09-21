@@ -36,6 +36,8 @@ junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", vers
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 
+shadow = { id = "com.gradleup.shadow", version = "8.3.2" }
+
 jooq-docker = { id = "dev.monosoul.jooq-docker", version = "6.1.6" }
 
 ktlint = { id = "org.jmailen.kotlinter", version = "4.4.1" }

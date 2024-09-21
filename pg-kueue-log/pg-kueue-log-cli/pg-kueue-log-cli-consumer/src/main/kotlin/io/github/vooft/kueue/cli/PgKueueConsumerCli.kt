@@ -58,7 +58,8 @@ class PgKueueConsumerCli : CliktCommand() {
         consumer.init()
 
         for (message in consumer.messages) {
-            println("$message")
+            println("message=${message.value.value}, partition=${message.partitionIndex.index}")
+            consumer.commit(message)
         }
     }
 }

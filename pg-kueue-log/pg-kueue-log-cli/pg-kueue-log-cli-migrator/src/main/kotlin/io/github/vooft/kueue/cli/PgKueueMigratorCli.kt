@@ -19,7 +19,6 @@ class PgKueueMigratorCli : CliktCommand() {
             .locations("classpath:kueue-database")
             .load()
             .migrate()
-
     }
 }
 

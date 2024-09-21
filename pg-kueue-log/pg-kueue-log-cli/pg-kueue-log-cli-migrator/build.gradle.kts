@@ -1,8 +1,9 @@
 plugins {
     `pg-kueue-base`
-    `pg-kueue-publish`
 
     application
+
+    alias(libs.plugins.shadow)
 }
 
 dependencies {
@@ -18,4 +19,3 @@ dependencies {
 application {
     mainClass = "io.github.vooft.kueue.cli.PgKueueMigratorCliKt"
 }
-
