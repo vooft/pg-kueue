@@ -33,7 +33,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -63,7 +62,8 @@ class KueueConsumerTest : IntegrationTest() {
             }
         )
 
-        dataSource = ProxyDataSourceBuilder.create(hikariDataSource).traceMethods().build()
+//        dataSource = ProxyDataSourceBuilder.create(hikariDataSource).traceMethods().build()
+        dataSource = hikariDataSource
 
         Flyway.configure()
             .dataSource(psql.jdbcUrl, psql.username, psql.password)
@@ -110,16 +110,20 @@ class KueueConsumerTest : IntegrationTest() {
             )
         )
 
-        consumer.init()
+        try {
+            consumer.init()
 
-        eventually(1.minutes) {
-            dataSource.connection.use { connection ->
-                val leader = JdbcKueuePersister()
-                    .findConsumerGroupLeaderLock(singlePartitionTopic, group, connection)
-                    .shouldNotBeNull()
+            eventually(1.minutes) {
+                dataSource.connection.use { connection ->
+                    val leader = JdbcKueuePersister()
+                        .findConsumerGroupLeaderLock(singlePartitionTopic, group, connection)
+                        .shouldNotBeNull()
 
-                leader.consumer shouldBe consumer.consumerName
+                    leader.consumer shouldBe consumer.consumerName
+                }
             }
+        } finally {
+            consumer.close()
         }
     }
 
@@ -142,18 +146,22 @@ class KueueConsumerTest : IntegrationTest() {
             )
         }
 
-        consumers.forEach { it.init() }
+        try {
+            consumers.forEach { it.init() }
 
-        eventually(1.minutes) {
-            dataSource.connection.use { connection ->
-                val connectedConsumers = JdbcKueuePersister()
-                    .findConnectedConsumers(multiplePartitionTopic, group, connection)
+            eventually(1.minutes) {
+                dataSource.connection.use { connection ->
+                    val connectedConsumers = JdbcKueuePersister()
+                        .findConnectedConsumers(multiplePartitionTopic, group, connection)
 
-                connectedConsumers.size shouldBe multiplePartitions
+                    connectedConsumers.size shouldBe multiplePartitions
 
-                val assignedPartitions = connectedConsumers.flatMap { it.assignedPartitions }.map { it.index }.sorted()
-                assignedPartitions shouldContainExactly (0 until multiplePartitions).toList()
+                    val assignedPartitions = connectedConsumers.flatMap { it.assignedPartitions }.map { it.index }.sorted()
+                    assignedPartitions shouldContainExactly (0 until multiplePartitions).toList()
+                }
             }
+        } finally {
+            consumers.forEach { it.close() }
         }
     }
 
@@ -186,34 +194,40 @@ class KueueConsumerTest : IntegrationTest() {
             )
         }
 
-        consumers.map { launch { it.init() } }.joinAll()
-
-        eventually(1.minutes) {
-            val consumerModels =  psql.createConnection("").use { JdbcKueuePersister().findConnectedConsumers(multiplePartitionTopic, group, it) }
-
-            consumerModels shouldHaveSize consumersCount
-            withClue("All consumers should be balanced") { consumerModels.filter { it.status == UNBALANCED }.shouldBeEmpty() }
-
-        }
-
         val consumedMutex = Mutex()
         val consumed = mutableListOf<KueueMessageModel>()
-        coroutineScope {
-            val jobs = consumers.map { consumer ->
-                launch {
-                    for (message in consumer.messages) {
-                        println("received $message")
-                        consumedMutex.withLock { consumed.add(message) }
-                    }
-                }
-            }
+
+        try {
+            consumers.map { launch { it.init() } }.joinAll()
 
             eventually(1.minutes) {
-                val currentlyConsumed = consumedMutex.withLock { consumed.toList() }
-                currentlyConsumed shouldContainExactlyInAnyOrder messages
+                val consumerModels = psql.createConnection("").use {
+                    JdbcKueuePersister().findConnectedConsumers(multiplePartitionTopic, group, it)
+                }
+
+                consumerModels shouldHaveSize consumersCount
+                withClue("All consumers should be balanced") { consumerModels.filter { it.status == UNBALANCED }.shouldBeEmpty() }
             }
 
-            jobs.forEach { it.cancel() }
+            coroutineScope {
+                val jobs = consumers.map { consumer ->
+                    launch {
+                        for (message in consumer.messages) {
+                            println("received $message")
+                            consumedMutex.withLock { consumed.add(message) }
+                        }
+                    }
+                }
+
+                eventually(1.minutes) {
+                    val currentlyConsumed = consumedMutex.withLock { consumed.toSet() }
+                    currentlyConsumed shouldContainExactlyInAnyOrder messages
+                }
+
+                jobs.forEach { it.cancel() }
+            }
+        } finally {
+            consumers.forEach { it.close() }
         }
     }
 

@@ -90,15 +90,28 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
     }
 
     private suspend fun pollLoop() = supervisorScope {
+        val loop = ConsumerLoop(coroutineScope)
+        while (isActive) {
+            try {
+                loop.iterate()
+            } catch (e: Exception) {
+                logger.error(e) { "Error in poll loop" }
+                delay(POLL_TIMEOUT)
+            }
+        }
+    }
+
+    private inner class ConsumerLoop(coroutineScope: CoroutineScope) {
         val nextOffsets = AtomicReference(mapOf<KueuePartitionIndex, KueuePartitionOffset>())
         var latestGroupVersion = -1
-        var sendJob = launch { }
-        while (isActive) {
+        var sendJob = coroutineScope.launch { }
+
+        suspend fun iterate() {
             val consumerModel = consumerDao.heartbeat(consumerName, topic, consumerGroup)
             if (consumerModel.status == KueueConnectedConsumerModel.KueueConnectedConsumerStatus.UNBALANCED) {
                 logger.info { "Consumer $consumerName is unbalanced, waiting for rebalance" }
                 delay(REBALANCE_WAIT_DELAY)
-                continue
+                return
             }
 
             val groupModel = consumerDao.getGroup(consumerGroup)
@@ -127,7 +140,7 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
                     partition to poller.poll(topic, partition, offset, MAX_POLL_BATCH)
                 }.toMap()
 
-                sendJob = launch {
+                sendJob = coroutineScope.launch {
                     val receivedMessages = messagesPerPartition.flatMap { it.value }
 
                     // TODO: send in a background job and only update heartbeat, without querying next messages, while running
@@ -142,8 +155,8 @@ class KueueConsumerImpl<C, KC : KueueConnection<C>>(
                     delay(POLL_TIMEOUT)
                 }
             } else {
-                val joinJob = launch { sendJob.join() }
-                val monitorJob = launch {
+                val joinJob = coroutineScope.launch { sendJob.join() }
+                val monitorJob = coroutineScope.launch {
                     delay(POLL_TIMEOUT)
                     joinJob.cancel()
                 }
