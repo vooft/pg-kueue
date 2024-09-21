@@ -4,26 +4,62 @@
 ![License](https://img.shields.io/github/license/vooft/pg-kueue)
 
 # pg-kueue
+This project aims to provide a simple Kotlin Coroutines-based interface for messaging, built on top of PostgreSQL, consists of two sub-projects:
+1. `pg-kueue-log` -- a library for emulating event store using PostgreSQL, similar to the Kafka Producer/Consumer model.
+2. `pg-kueue-pubsub` -- a simple library for working with PostgreSQL LISTEN/NOTIFY.
+
+# pg-kueue-log
+This module provides 2 main classes: `KueueProducer` and `KueueConsumer`, which mirror the Kafka Producer/Consumer model.
+
+At the moment it only works on top of the JDBC, however it should be possible to add other SPIs in future.
+
+## Usage
+```kotlin
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation("io.github.vooft:pg-kueue-log-jdbc:<version>")
+}
+```
+
+Simple consumer usage:
+```kotlin
+// dataSource must be provided externally
+val dataSource = createMyDataSource()
+val kueueLog = KueueLog.jdbc(dataSource)
+
+// here consumer will try to subscribe to the topic and group, if it does not exist, it will be created
+// topic must exist before creating a consumer
+val consumer = kueueLog.createConsumer(KueueTopic("my-topic"), KueueConsumerGroup("my-group"))
+
+// messages are an instance of ReceiveChannel and could be consumed using a for loop 
+for (message in consumer.messages) {
+    println(message)
+}
+```
+
+Simple producer usage:
+```kotlin
+// dataSource must be provided externally
+val dataSource = createMyDataSource()
+val kueueLog = KueueLog.jdbc(dataSource)
+
+// topic must exist before creating a producer
+val producer = kueueLog.createProducer(KueueTopic("test"))
+
+// key is mandatory and is used to partition messages
+producer.produce(KueueKey("my-key"), KueueValue("my-value"))
+```
+
+# pg-kueue-pubsub
 Kotlin Coroutines PostgresSQL-based message queue using LISTEN/NOTIFY
 
 Everything is String-based and for now just follows normal LISTEN/NOTIFY rules.
 
-## Supported database SPIs
-This library was designed to be used with different SPIs, providing similar coroutines-based interface.
+## JDBC usage
 
-Currently, only JDBC-based SPI is implemented + helper functions for jOOQ.
-
-### JDBC
-pg-kueue uses virtual threads to make any calls to the database in a non-blocking fashion.
-
-It works with any `java.sql.DataSource` implementation, reserving one connection for listening to notifications.
-
-### jOOQ
-There is a module that provides a number of helper methods that can work with a jOOQ `DSLContext` and mostly delegates to the JDBC module.
-
-# JDBC usage
-
-## Gradle
 ```kotlin
 repositories {
     mavenCentral()
@@ -34,7 +70,7 @@ dependencies {
 }
 ```
 
-## Simple usage
+Simple usage:
 ```kotlin
 val dataSource = createMyDataSource()
 
@@ -72,30 +108,4 @@ There is also an extension function for a specific library to simplify transacti
 ```kotlin
 val transactionalConnection = myBeginTransaction()
 kueue.publish(KueueTopic("my_topic"), "Hello, world!", transactionalConnection) // an extension function must be imported explicitly
-```
-
-# Additional modules
-## jOOQ JDBC
-There is a module that accepts a jOOQ `DSLContext` and provides a similar interface to the JDBC module.
-
-### Gradle
-```kotlin
-repositories {
-    mavenCentral()
-}
-
-dependencies {
-    implementation("io.github.vooft:pg-kueue-pubsub-jdbc:<version>")
-}
-```
-
-### Usage
-```kotlin
-val dslContext = createMyDslContext()
-
-// there is a helper method to create a KueuePubSub instance using, for example, a non-transactional DSLContext
-val kueue = KueuePubSub.jooq(dslContext)
-
-// also there is an extension method that accepts a transactional DSLContext to publish notification within a transaction
-kueue.publish(KueueTopic("my_topic"), "Hello, world!", myTransactionalDslContext)
 ```

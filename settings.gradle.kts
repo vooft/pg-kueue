@@ -24,6 +24,7 @@ include(
     ":pg-kueue-log:pg-kueue-log-cli:pg-kueue-log-cli-consumer",
     ":pg-kueue-log:pg-kueue-log-cli:pg-kueue-log-cli-migrator",
     ":pg-kueue-log:pg-kueue-log-cli:pg-kueue-log-cli-producer",
+    ":pg-kueue-log:pg-kueue-log-jdbc",
     ":pg-kueue-log:pg-kueue-log-test",
 )
 

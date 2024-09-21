@@ -26,5 +26,5 @@ class KueueLogImpl<C, KC : KueueConnection<C>>(
         consumerGroup = group,
         consumerDao = KueueConsumerDao(connectionProvider, persister),
         poller = poller
-    )
+    ).also { it.init() }
 }
