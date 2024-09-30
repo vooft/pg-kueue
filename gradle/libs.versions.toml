@@ -12,7 +12,7 @@ kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref =
 clikt = { module = "com.github.ajalt.clikt:clikt", version = "5.0.0" }
 
 pg-jdbc = { module = "org.postgresql:postgresql", version = "42.7.4" }
-jooq = { module = "org.jooq:jooq", version = "3.19.12" }
+jooq = { module = "org.jooq:jooq", version = "3.19.13" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 
