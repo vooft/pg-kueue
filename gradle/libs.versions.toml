@@ -25,7 +25,7 @@ slf4j-simple = { module = "org.slf4j:slf4j-simple", version = "2.0.16" }
 
 testcontainers-postgres = { module = "org.testcontainers:postgresql", version = "1.20.3" }
 hikaricp = { module = "com.zaxxer:HikariCP", version = "6.1.0" }
-datasource-proxy = { module = "net.ttddyy:datasource-proxy", version = "1.10" }
+datasource-proxy = { module = "net.ttddyy:datasource-proxy", version = "1.10.1" }
 
 kotest-assertions = { module = "io.kotest:kotest-assertions-core-jvm", version.ref = "kotest" }
 kotest-runner = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
