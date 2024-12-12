@@ -40,7 +40,7 @@ shadow = { id = "com.gradleup.shadow", version = "8.3.5" }
 
 jooq-docker = { id = "dev.monosoul.jooq-docker", version = "6.1.11" }
 
-ktlint = { id = "org.jmailen.kotlinter", version = "4.4.1" }
+ktlint = { id = "org.jmailen.kotlinter", version = "5.0.0" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version = "1.23.7" }
 
 maven-central-publish = { id = "com.vanniktech.maven.publish", version = "0.30.0" }
