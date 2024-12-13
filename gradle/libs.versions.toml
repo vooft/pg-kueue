@@ -5,7 +5,7 @@ kotest = "5.9.1"
 flyway = "11.0.0"
 
 [libraries]
-kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version = "7.0.0" }
+kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version = "7.0.3" }
 
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 
