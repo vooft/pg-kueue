@@ -38,7 +38,7 @@ kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 
 shadow = { id = "com.gradleup.shadow", version = "8.3.5" }
 
-jooq-docker = { id = "dev.monosoul.jooq-docker", version = "6.1.13" }
+jooq-docker = { id = "dev.monosoul.jooq-docker", version = "6.1.14" }
 
 ktlint = { id = "org.jmailen.kotlinter", version = "5.0.1" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version = "1.23.7" }
