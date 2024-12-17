@@ -44,7 +44,7 @@ ktlint = { id = "org.jmailen.kotlinter", version = "5.0.1" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version = "1.23.7" }
 
 maven-central-publish = { id = "com.vanniktech.maven.publish", version = "0.30.0" }
-dokka = { id = "org.jetbrains.dokka", version = "1.9.20" }
+dokka = { id = "org.jetbrains.dokka", version = "2.0.0" }
 
 [bundles]
 coroutines = ["kotlinx-coroutines-core", "kotlinx-coroutines-reactor", "kotlinx-coroutines-slf4j"]
